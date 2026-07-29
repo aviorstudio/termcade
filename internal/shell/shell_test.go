@@ -179,8 +179,8 @@ func TestRegistrationErrorStaysOnMenu(t *testing.T) {
 	m := newTestShellReg(t, reg)
 	m, _ = step(t, m, key("l"))
 	m, cmd := step(t, m, key("enter"))
-	if m.screen != screenMenu || cmd != nil {
-		t.Fatalf("screen = %v after failed launch", m.screen)
+	if m.screen != screenMenu || cmd == nil {
+		t.Fatalf("failed launch did not return on a clean index: screen=%v cmd=%v", m.screen, cmd)
 	}
 	if !strings.Contains(view(m), "does not load") {
 		t.Error("menu does not surface the load error")
@@ -399,11 +399,54 @@ func drain(t *testing.T, m Model, cmd tea.Cmd) Model {
 		if msg == nil {
 			break
 		}
+		if batch, ok := msg.(tea.BatchMsg); ok {
+			for _, batched := range batch {
+				m = drain(t, m, batched)
+			}
+			break
+		}
 		var mm tea.Model
 		mm, cmd = m.Update(msg)
 		m = mm.(Model)
 	}
 	return m
+}
+
+func TestPageTransitionsClearTerminal(t *testing.T) {
+	t.Run("game to index", func(t *testing.T) {
+		g := &fakeGame{}
+		m := newTestShell(t, g)
+		m, _ = step(t, m, key("l"))
+		m, _ = step(t, m, key("enter"))
+		m, _ = step(t, m, key("esc"))
+		m, _ = step(t, m, key("j"))
+		m, _ = step(t, m, key("j"))
+		m, cmd := step(t, m, key("enter"))
+		if m.screen != screenMenu || cmd == nil {
+			t.Fatalf("game exit did not clear index route: screen=%v cmd=%v", m.screen, cmd)
+		}
+	})
+
+	t.Run("marketplace to account", func(t *testing.T) {
+		m, _, _ := newMarketShell(t)
+		m, cmd := step(t, m, key("m"))
+		m = drain(t, m, cmd)
+		m, cmd = step(t, m, key("l"))
+		if m.screen != screenAuth || cmd == nil {
+			t.Fatalf("login did not clear account route: screen=%v cmd=%v", m.screen, cmd)
+		}
+	})
+
+	t.Run("pause stays on game route", func(t *testing.T) {
+		g := &fakeGame{}
+		m := newTestShell(t, g)
+		m, _ = step(t, m, key("l"))
+		m, _ = step(t, m, key("enter"))
+		m, cmd := step(t, m, key("esc"))
+		if m.screen != screenPaused || cmd != nil {
+			t.Fatalf("pause crossed a page boundary: screen=%v cmd=%v", m.screen, cmd)
+		}
+	})
 }
 
 func TestMarketBrowseAnonymous(t *testing.T) {

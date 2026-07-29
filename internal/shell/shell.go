@@ -35,6 +35,33 @@ const (
 	screenLibrary
 )
 
+// route is the full-screen page boundary. Gameplay overlays share one route;
+// every other screen owns its own terminal page.
+type route int
+
+const (
+	routeIndex route = iota
+	routeGame
+	routeMarketplace
+	routeAccount
+	routeLibrary
+)
+
+func routeFor(s screen) route {
+	switch s {
+	case screenMenu:
+		return routeIndex
+	case screenMarket:
+		return routeMarketplace
+	case screenAuth:
+		return routeAccount
+	case screenLibrary:
+		return routeLibrary
+	default:
+		return routeGame
+	}
+}
+
 type tickMsg struct {
 	gen int
 	at  time.Time
@@ -80,6 +107,19 @@ func (m Model) tick() tea.Cmd {
 }
 
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	previousRoute := routeFor(m.screen)
+	next, cmd := m.update(msg)
+	nextModel, ok := next.(Model)
+	if ok && routeFor(nextModel.screen) != previousRoute {
+		// Bubble Tea normally repaints incrementally. A hard clear at page
+		// boundaries prevents cells from a larger route showing through a
+		// smaller one in terminals that do not erase blank cells reliably.
+		cmd = tea.Batch(tea.ClearScreen, cmd)
+	}
+	return next, cmd
+}
+
+func (m Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	if m.mp != nil {
 		if mm, cmd, handled := m.updateMarketMsg(msg); handled {
 			return mm, cmd
