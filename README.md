@@ -78,6 +78,8 @@ the auto-repeat heuristic.
 | space or z | A button: launch ball / fire / hard drop |
 | x | B button |
 | esc or p | pause |
+| m (menu) | marketplace |
+| r (menu) | remove the selected added game |
 | q | quit (from menu) |
 
 High scores persist to `~/.config/termcade/scores.json`.
