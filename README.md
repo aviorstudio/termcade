@@ -20,7 +20,7 @@ Installable (the reference `.tcade` package, built from this repo):
   english, clear the wall, survive the speed-up.
 
 ```sh
-termcade dev build games/brickough && termcade add brickough.tcade
+termcade dev build games/brickough && termcade add games/brickough/build/brickough.tcade
 ```
 
 ## Run

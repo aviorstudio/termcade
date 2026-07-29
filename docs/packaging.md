@@ -42,7 +42,7 @@ mygame.tcade
 └── game.wasm
 ```
 
-`termcade dev build [dir]` produces one from a game directory (it compiles
+`termcade dev build [dir]` produces one at `<dir>/build/<slug>.tcade` (it compiles
 `./cmd/wasm`, validates the module's exports, and zips it with the manifest).
 
 ## Installing
