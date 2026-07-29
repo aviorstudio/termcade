@@ -1,6 +1,6 @@
-// Package registry is the termcade.com client: marketplace catalog, account
-// auth, and the user's library. Browsing is anonymous; everything else sends
-// the session token.
+// Package registry is the termcade.com client: marketplace catalog, package
+// downloads, account auth, and the user's library. Browsing and demo downloads
+// are anonymous; account operations send the session token.
 package registry
 
 import (
@@ -134,7 +134,9 @@ func (c *Client) Download(author, slug string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	req.Header.Set("Authorization", c.token)
+	if c.token != "" {
+		req.Header.Set("Authorization", c.token)
+	}
 	resp, err := c.http.Do(req)
 	if err != nil {
 		return "", fmt.Errorf("registry unreachable: %w", err)

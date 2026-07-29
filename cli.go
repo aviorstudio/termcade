@@ -27,7 +27,7 @@ usage:
   termcade list                list the games in your arcade
 
   termcade signup [email]      create a marketplace account
-  termcade login [email]       sign in (adding games requires it)
+  termcade login [email]       sign in (non-demo packages and library sync)
   termcade logout              sign out
 
   termcade dev new <id> [dir]  start your own game (id is author/slug)
@@ -90,7 +90,7 @@ func cmdAdd(args []string) error {
 	}
 	src := args[0]
 
-	session, err := requireSession()
+	session, err := registry.LoadSession()
 	if err != nil {
 		return err
 	}
@@ -98,6 +98,9 @@ func cmdAdd(args []string) error {
 	// Marketplace id → fetch through the registry and sync the library.
 	if _, statErr := os.Stat(src); gameIDRe.MatchString(src) && statErr != nil {
 		return addFromRegistry(session, src)
+	}
+	if session == nil {
+		return fmt.Errorf("adding non-demo packages requires an account — run `termcade login` (or `termcade signup`)")
 	}
 
 	var raw []byte
@@ -118,10 +121,17 @@ func cmdAdd(args []string) error {
 
 func addFromRegistry(session *registry.Session, id string) error {
 	author, slug, _ := strings.Cut(id, "/")
-	client := registry.New(registry.URL(session), session.Token)
+	token := ""
+	if session != nil {
+		token = session.Token
+	}
+	client := registry.New(registry.URL(session), token)
 
 	path, err := client.Download(author, slug)
 	if errors.Is(err, registry.ErrLoginRequired) {
+		if session == nil {
+			return fmt.Errorf("adding %s requires an account — run `termcade login`", id)
+		}
 		return fmt.Errorf("your session has expired — run `termcade login`")
 	}
 	if err != nil {
@@ -137,8 +147,10 @@ func addFromRegistry(session *registry.Session, id string) error {
 		return err
 	}
 	// Library sync is best-effort: the game is already installed locally.
-	if err := client.LibraryAdd(author, slug); err != nil {
-		fmt.Fprintf(os.Stderr, "warning: could not add %s to your library: %v\n", id, err)
+	if session != nil {
+		if err := client.LibraryAdd(author, slug); err != nil {
+			fmt.Fprintf(os.Stderr, "warning: could not add %s to your library: %v\n", id, err)
+		}
 	}
 	return nil
 }
