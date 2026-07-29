@@ -512,15 +512,6 @@ func TestMenuRemoveInstalledGame(t *testing.T) {
 		t.Fatal("installed game missing from library")
 	}
 
-	// r on a builtin refuses politely.
-	mm, cmd = step(t, mm, key("r"))
-	if cmd != nil || len(*installed) != 1 {
-		t.Fatal("r on a builtin started a removal")
-	}
-	if !strings.Contains(view(mm), "built in") {
-		t.Error("no builtin notice shown")
-	}
-
 	// r on the installed game removes it and the menu updates.
 	mm, _ = step(t, mm, key("j"))
 	mm, cmd = step(t, mm, key("r"))

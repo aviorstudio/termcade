@@ -29,8 +29,9 @@ units (the arcade allocates the canvas from these numbers).
 
 `game.id` namespaces everything: the install directory, the high-score table,
 menu identity. Two games named `tetris` by different authors never collide.
-An installed game whose id equals a builtin's id **shadows** the builtin —
-that is also how bundled games will receive marketplace updates.
+Installing a game whose id you already have replaces it — that is the whole
+update story, bundled starter games included: the marketplace copy simply
+takes the local one's place.
 
 ## .tcade packages
 

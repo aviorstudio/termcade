@@ -97,16 +97,15 @@ func (m Model) openLibrary() (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-// removeGame removes m.games[idx] when it is an installed game. Builtins are
-// compiled in — nothing to remove — and an installed game that shadows a
-// builtin reverts to the builtin on the reload.
+// removeGame removes m.games[idx]. Every game is an installed package now —
+// bundled starter games included — so anything healthy can be removed and
+// re-added from the marketplace later.
 func (m Model) removeGame(idx int) (tea.Model, tea.Cmd) {
 	if m.mp == nil || m.market.busy || idx >= len(m.games) {
 		return m, nil
 	}
 	reg := m.games[idx]
-	if !reg.Installed {
-		m.notice = reg.Info.Title + " is built in — nothing to remove"
+	if reg.Err != nil {
 		return m, nil
 	}
 	m.market.busy = true

@@ -1,13 +1,14 @@
 # termcade
 
 A terminal arcade. Classic games rendered at sub-cell resolution with block
-pixels, built on [Bubble Tea](https://charm.land/bubbletea). Ships with
-builtin games; anyone can write more against the SDK and distribute them as
-sandboxed WebAssembly packages that players add with `termcade add`.
+pixels, built on [Bubble Tea](https://charm.land/bubbletea). The arcade
+compiles no games in — every game is a sandboxed WebAssembly package. It
+ships with a starter pack, and anyone can write more against the SDK and
+publish them for players to `termcade add`.
 
 ## Games
 
-Builtin:
+Starter pack (bundled in the binary, seeded on first run, playable offline):
 
 - **ASTEROID** — Asteroids-style rock shooter. Inertial ship on a wrapping
   field; big rocks split into faster small ones.
@@ -140,7 +141,10 @@ through the marketplace — the exact path a third-party game takes.
 - `internal/engine` — host-side registry types and `SafeGame`, which contains
   any game panic to a crash screen instead of a dead arcade.
 - `internal/plugin` — the wazero host: sandboxed instantiation, per-call
-  watchdog deadlines, install-dir discovery, builtin shadowing.
+  watchdog deadlines, install-dir discovery.
+- `internal/starter` — the bundled starter pack: committed `.tcade`
+  packages embedded in the binary, unpacked into the games directory on
+  first run.
 - `internal/manifest` — `termcade.toml` parsing/validation and the `.tcade`
   zip format.
 - `internal/shell` — the Bubble Tea arcade frame: menu, 60 TPS tick loop that
@@ -148,10 +152,10 @@ through the marketplace — the exact path a third-party game takes.
   overlays.
 - `internal/scores` — atomic JSON high-score persistence, namespaced by
   `author/slug`.
-- `games/*` — every game, builtin or not: sdk-only packages with a
+- `games/*` — the bundled games' source: sdk-only packages with a
   `cmd/wasm` entrypoint and a `termcade.toml`, exactly the shape a
-  third-party game has. Builtins are just the ones `main.go`
-  also compiles in.
+  third-party game has. Nothing here is compiled into the arcade; these
+  build into the starter pack (`go generate ./internal/starter`).
 
 ## Development
 
