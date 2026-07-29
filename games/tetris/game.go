@@ -6,7 +6,6 @@ import (
 	"math/rand"
 	"time"
 
-	"github.com/aviorstudio/termcade/internal/engine"
 	"github.com/aviorstudio/termcade/sdk"
 )
 
@@ -73,9 +72,9 @@ type game struct {
 
 var info = sdk.Info{ID: "aviorstudio/tetris", Title: "TETRIS", PixelW: 32, PixelH: 40}
 
-func Register() engine.Registration {
-	return engine.Registration{Info: info, New: func() (sdk.Game, error) { return &game{}, nil }}
-}
+// New constructs a fresh game; the arcade compiles it in as a builtin,
+// and cmd/wasm packages the same code as an installable .tcade.
+func New() sdk.Game { return &game{} }
 
 func (g *game) Info() sdk.Info { return info }
 

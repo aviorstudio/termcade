@@ -8,22 +8,30 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
+	"github.com/aviorstudio/termcade/games/asteroid"
+	"github.com/aviorstudio/termcade/games/tetris"
 	"github.com/aviorstudio/termcade/internal/engine"
-	"github.com/aviorstudio/termcade/internal/games/asteroid"
-	"github.com/aviorstudio/termcade/internal/games/tetris"
 	"github.com/aviorstudio/termcade/internal/plugin"
 	"github.com/aviorstudio/termcade/internal/scores"
 	"github.com/aviorstudio/termcade/internal/shell"
 	"github.com/aviorstudio/termcade/sdk"
 )
 
+// builtin adapts a game constructor into a menu registration. Game packages
+// are sdk-only — exactly the shape a third-party game has — so the arcade
+// side of the contract lives here, not in them.
+func builtin(new func() sdk.Game) engine.Registration {
+	info := new().Info()
+	return engine.Registration{Info: info, New: func() (sdk.Game, error) { return new(), nil }}
+}
+
 // builtins are the games compiled into the arcade. Brickough is deliberately
 // absent: it ships as a .tcade package (see games/brickough), keeping the
 // install path honestly exercised.
 func builtins() []engine.Registration {
 	return []engine.Registration{
-		asteroid.Register(),
-		tetris.Register(),
+		builtin(asteroid.New),
+		builtin(tetris.New),
 	}
 }
 
