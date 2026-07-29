@@ -1,3 +1,5 @@
-/termcade
+# Build artifacts. Binaries never get committed; releases ship from CI.
+/bin/
+/dist/
 *.tcade
 game.wasm
