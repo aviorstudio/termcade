@@ -28,13 +28,13 @@ termcade dev build games/brickough && termcade add games/brickough/build/brickou
 With Go installed, straight from the internet:
 
 ```sh
-go run github.com/aviorstudio/termcade/cmd/termcade@latest
+go run github.com/aviorstudio/termcade@latest
 ```
 
 Or grab a prebuilt archive from the
 [releases](https://github.com/aviorstudio/termcade/releases). From a
 checkout (toolchain pinned via [mise](https://mise.jdx.dev) — `mise
-install`): `go run ./cmd/termcade`.
+install`): `go run .`.
 
 Needs a truecolor terminal at 80×24 or larger.
 
@@ -51,7 +51,7 @@ requirements change.
 | `half` | 1×2 | The original look, for fonts that struggle with the rest. |
 
 ```sh
-TERMCADE_PIXELS=sextant go run ./cmd/termcade
+TERMCADE_PIXELS=sextant go run .
 ```
 
 ### Input latency
@@ -144,13 +144,13 @@ compiled in as builtins.
   `author/slug`.
 - `games/*` — every game, builtin or not: sdk-only packages with a
   `cmd/wasm` entrypoint and a `termcade.toml`, exactly the shape a
-  third-party game has. Builtins are just the ones `cmd/termcade/main.go`
+  third-party game has. Builtins are just the ones `main.go`
   also compiles in.
 
 ## Development
 
 ```sh
-go build -o bin/termcade ./cmd/termcade   # local builds land in bin/ (gitignored)
+go build -o bin/termcade .   # local builds land in bin/ (gitignored)
 go test ./...                # unit + shell tests
 go test ./internal/plugin/   # includes wasm end-to-end tests (builds guests)
 go vet ./...
