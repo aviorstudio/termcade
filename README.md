@@ -90,9 +90,9 @@ High scores persist to `~/.config/termcade/scores.json`.
 
 The arcade opens on your recently played games, with the library (`l`) and
 marketplace (`m`) one keystroke away. Press `m` to browse the marketplace — no account needed to
-look. Adding a game to your arcade requires signing in, and the arcade has
-its own sign-in/sign-up screens, so you never need the website. Your library
-follows your account across machines.
+look or install the demo games. Sign in only if you want your library to
+follow your account across machines; the arcade has its own sign-in/sign-up
+screens, so you never need the website.
 
 The same works from the command line:
 
@@ -143,8 +143,8 @@ through the marketplace — the exact path a third-party game takes.
 - `internal/plugin` — the wazero host: sandboxed instantiation, per-call
   watchdog deadlines, install-dir discovery.
 - `internal/starter` — the bundled starter pack: committed `.tcade`
-  packages embedded in the binary, unpacked into the games directory on
-  first run.
+  packages embedded in the binary, unpacked once into the games directory
+  (including when upgrading an existing installation).
 - `internal/manifest` — `termcade.toml` parsing/validation and the `.tcade`
   zip format.
 - `internal/shell` — the Bubble Tea arcade frame: menu, 60 TPS tick loop that

@@ -69,8 +69,6 @@ type authState struct {
 	password  string
 	err       string
 	busy      bool
-	// pendingInstall resumes the install that needed the login.
-	pendingInstall string
 }
 
 func (m Model) loadMarket() tea.Cmd {
@@ -155,13 +153,7 @@ func (m Model) updateMarketMsg(msg tea.Msg) (Model, tea.Cmd, bool) {
 			m.auth.err = msg.err.Error()
 			return m, nil, true
 		}
-		pending := m.auth.pendingInstall
 		m.screen = screenMarket
-		if pending != "" {
-			m.market.busy = true
-			m.market.notice = "adding " + pending + "…"
-			return m, m.installCmd(pending), true
-		}
 		m.market.notice = "signed in"
 		return m, nil, true
 	}
@@ -221,11 +213,6 @@ func (m Model) updateMarketKey(key string) (tea.Model, tea.Cmd) {
 		}
 		if !game.HasPackage {
 			m.market.notice = game.ID + " has no downloadable package yet"
-			return m, nil
-		}
-		if _, ok := m.mp.Account(); !ok {
-			m.auth = authState{pendingInstall: game.ID}
-			m.screen = screenAuth
 			return m, nil
 		}
 		m.market.busy = true

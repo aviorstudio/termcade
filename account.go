@@ -96,16 +96,3 @@ func cmdLogout() error {
 	fmt.Println("logged out")
 	return nil
 }
-
-// requireSession is the gate on adding games: browsing is anonymous, taking
-// games home needs an account.
-func requireSession() (*registry.Session, error) {
-	session, err := registry.LoadSession()
-	if err != nil {
-		return nil, err
-	}
-	if session == nil {
-		return nil, fmt.Errorf("adding games requires an account — run `termcade login` (or `termcade signup`)")
-	}
-	return session, nil
-}

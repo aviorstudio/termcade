@@ -17,6 +17,7 @@ import (
 	"embed"
 	"fmt"
 	"os"
+	"path/filepath"
 
 	"github.com/aviorstudio/termcade/internal/manifest"
 )
@@ -27,12 +28,17 @@ import (
 //go:embed packs/*.tcade
 var packs embed.FS
 
-// Seed unpacks the bundled games into gamesDir on first run. First run means
-// the games directory does not exist yet: removing a single starter game
-// sticks, and only deleting the whole directory invites the pack back.
+const seedMarker = ".starter-v1"
+
+// Seed unpacks the bundled games once, including for users whose games
+// directory predates the starter pack. The marker is written only after every
+// package installs successfully, so later removal of a starter game sticks.
 func Seed(gamesDir string) error {
-	if _, err := os.Stat(gamesDir); err == nil {
-		return nil // not the first run
+	marker := filepath.Join(gamesDir, seedMarker)
+	if _, err := os.Stat(marker); err == nil {
+		return nil
+	} else if !os.IsNotExist(err) {
+		return err
 	}
 	entries, err := packs.ReadDir("packs")
 	if err != nil {
@@ -53,6 +59,9 @@ func Seed(gamesDir string) error {
 		if _, err := pkg.Install(gamesDir); err != nil {
 			return fmt.Errorf("seeding %s: %w", pkg.Manifest.Game.ID, err)
 		}
+	}
+	if err := os.WriteFile(marker, nil, 0o644); err != nil {
+		return fmt.Errorf("marking starter pack installed: %w", err)
 	}
 	return nil
 }

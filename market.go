@@ -50,14 +50,18 @@ func newMarketplace(rt *plugin.Runtime, shape sdk.CellShape) *shell.Marketplace 
 
 		Install: func(id string) error {
 			session, err := registry.LoadSession()
-			if err != nil || session == nil {
-				return fmt.Errorf("sign in to add games")
+			if err != nil {
+				return err
 			}
 			author, slug, ok := strings.Cut(id, "/")
 			if !ok {
 				return fmt.Errorf("bad game id %q", id)
 			}
-			client := registry.New(registry.URL(session), session.Token)
+			token := ""
+			if session != nil {
+				token = session.Token
+			}
+			client := registry.New(registry.URL(session), token)
 			path, err := client.Download(author, slug)
 			if err != nil {
 				return err
@@ -70,8 +74,11 @@ func newMarketplace(rt *plugin.Runtime, shape sdk.CellShape) *shell.Marketplace 
 			if _, _, err := installPackageBytes(raw); err != nil {
 				return err
 			}
-			// Library sync is best-effort; the game is already installed.
-			_ = client.LibraryAdd(author, slug)
+			// Library sync is best-effort when signed in; the game is already
+			// installed locally either way.
+			if session != nil {
+				_ = client.LibraryAdd(author, slug)
+			}
 			return nil
 		},
 

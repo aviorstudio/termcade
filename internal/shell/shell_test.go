@@ -424,21 +424,44 @@ func TestMarketBrowseAnonymous(t *testing.T) {
 	}
 }
 
-func TestMarketInstallRequiresSignin(t *testing.T) {
+func TestMarketInstallAsGuest(t *testing.T) {
 	m, signedIn, installed := newMarketShell(t)
 	mm, cmd := step(t, m, key("m"))
 	mm = drain(t, mm, cmd)
 
-	// Enter on Blaster while signed out lands on the account chooser.
-	mm, _ = step(t, mm, key("enter"))
-	if mm.screen != screenAuth {
-		t.Fatalf("screen = %v, want auth", mm.screen)
+	mm, cmd = step(t, mm, key("enter"))
+	if cmd == nil {
+		t.Fatal("no install command issued")
 	}
-	if !strings.Contains(view(mm), "sign in") {
-		t.Fatal("auth chooser not shown")
+	mm = drain(t, mm, cmd)
+
+	if *signedIn {
+		t.Fatal("guest install unexpectedly signed in")
+	}
+	if len(*installed) != 1 || (*installed)[0].Info.ID != "acme/blaster" {
+		t.Fatalf("install failed: %+v", *installed)
+	}
+	if mm.screen != screenMarket {
+		t.Fatalf("screen = %v after install", mm.screen)
+	}
+	if out := view(mm); !strings.Contains(out, "in your arcade") {
+		t.Errorf("installed marker missing:\n%s", out)
 	}
 
-	// Choose "create account", type credentials, submit.
+	// Back through the index, the library lists the new game.
+	mm, _ = step(t, mm, key("esc"))
+	mm, _ = step(t, mm, key("l"))
+	if out := view(mm); !strings.Contains(out, "BLASTER") {
+		t.Error("library missing the installed game")
+	}
+}
+
+func TestMarketSignup(t *testing.T) {
+	m, signedIn, _ := newMarketShell(t)
+	mm, cmd := step(t, m, key("m"))
+	mm = drain(t, mm, cmd)
+
+	mm, _ = step(t, mm, key("l"))
 	mm, _ = step(t, mm, key("j"))
 	mm, _ = step(t, mm, key("enter"))
 	for _, r := range "p@t.dev" {
@@ -450,28 +473,15 @@ func TestMarketInstallRequiresSignin(t *testing.T) {
 	}
 	mm, cmd = step(t, mm, key("enter"))
 	if cmd == nil {
-		t.Fatal("no auth command issued")
+		t.Fatal("no signup command issued")
 	}
 	mm = drain(t, mm, cmd)
 
 	if !*signedIn {
 		t.Fatal("signup hook not called")
 	}
-	if len(*installed) != 1 || (*installed)[0].Info.ID != "acme/blaster" {
-		t.Fatalf("pending install did not resume: %+v", *installed)
-	}
 	if mm.screen != screenMarket {
-		t.Fatalf("screen = %v after auth+install", mm.screen)
-	}
-	if out := view(mm); !strings.Contains(out, "in your arcade") {
-		t.Errorf("installed marker missing:\n%s", out)
-	}
-
-	// Back through the index, the library lists the new game.
-	mm, _ = step(t, mm, key("esc"))
-	mm, _ = step(t, mm, key("l"))
-	if out := view(mm); !strings.Contains(out, "BLASTER") {
-		t.Error("library missing the installed game")
+		t.Fatalf("screen = %v after signup", mm.screen)
 	}
 }
 
