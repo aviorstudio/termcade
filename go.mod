@@ -11,7 +11,7 @@ require (
 )
 
 require (
-	github.com/aviorstudio/termcade/sdk v0.0.0
+	github.com/aviorstudio/termcade/sdk v0.0.1
 	github.com/charmbracelet/colorprofile v0.4.3 // indirect
 	github.com/charmbracelet/ultraviolet v0.0.0-20260703014108-f5a850f9c2b7 // indirect
 	github.com/charmbracelet/x/ansi v0.11.7 // indirect
@@ -28,5 +28,3 @@ require (
 	golang.org/x/sync v0.21.0 // indirect
 	golang.org/x/sys v0.47.0 // indirect
 )
-
-replace github.com/aviorstudio/termcade/sdk => ./sdk
