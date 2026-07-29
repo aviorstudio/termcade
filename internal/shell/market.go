@@ -134,7 +134,9 @@ func (m Model) updateMarketMsg(msg tea.Msg) (Model, tea.Cmd, bool) {
 	case marketOpMsg:
 		m.market.busy = false
 		if msg.err != nil {
+			// Whichever screen kicked the operation off shows its outcome.
 			m.market.notice = msg.err.Error()
+			m.notice = msg.err.Error()
 			return m, nil, true
 		}
 		m.games = m.mp.Reload()
@@ -142,6 +144,7 @@ func (m Model) updateMarketMsg(msg tea.Msg) (Model, tea.Cmd, bool) {
 			m.menuIdx = 0
 		}
 		m.market.notice = msg.verb + " " + msg.id
+		m.notice = msg.verb + " " + msg.id
 		return m, nil, true
 	case authDoneMsg:
 		m.auth.busy = false
