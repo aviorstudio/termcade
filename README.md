@@ -14,13 +14,14 @@ Builtin:
 - **TETRIS** — Falling-block stacker. Super Rotation System kicks, a 7-bag
   randomizer, ghost piece, lock delay, and gravity that tightens by level.
 
-Installable (the reference `.tcade` package, built from this repo):
+From the marketplace (press `m`, or the CLI):
 
 - **BRICKOUGH** — Breakout-style brick breaker. Steer the ball with paddle
-  english, clear the wall, survive the speed-up.
+  english, clear the wall, survive the speed-up. Lives outside this repo as
+  a real third-party-shaped game, installed the way any marketplace game is:
 
 ```sh
-termcade dev build games/brickough && termcade add games/brickough/build/brickough.tcade
+termcade add aviorstudio/brickough
 ```
 
 ## Run
@@ -119,10 +120,11 @@ and [docs/abi.md](docs/abi.md) for the frozen wasm ABI (for non-Go
 toolchains). `termcade dev build` turns a game directory into an installable
 package.
 
-Every game under `games/` is a worked example — complete games depending
+The games under `games/` are worked examples — complete games depending
 only on the `sdk` module, each buildable into a `.tcade` via its `cmd/wasm`
-entrypoint. Brickough ships only that way; asteroid and tetris are also
-compiled in as builtins.
+entrypoint. Brickough goes one further: it lives entirely outside this repo
+as its own module against the published sdk, and reaches the arcade only
+through the marketplace — the exact path a third-party game takes.
 
 ## Architecture
 
