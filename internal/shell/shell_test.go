@@ -105,8 +105,12 @@ func TestMenuToPlayingAndDraw(t *testing.T) {
 	g := &fakeGame{}
 	m := newTestShell(t, g)
 
+	if !strings.Contains(view(m), "LIBRARY") {
+		t.Fatal("index does not offer the library")
+	}
+	m, _ = step(t, m, key("l"))
 	if !strings.Contains(view(m), "FAKE") {
-		t.Fatal("menu does not list the game")
+		t.Fatal("library does not list the game")
 	}
 	m, cmd := step(t, m, key("enter"))
 	if m.screen != screenPlaying {
@@ -132,6 +136,7 @@ func TestMenuToPlayingAndDraw(t *testing.T) {
 func TestGamePanicShowsCrashScreen(t *testing.T) {
 	g := &fakeGame{panicOnTick: 2}
 	m := newTestShell(t, g)
+	m, _ = step(t, m, key("l"))
 	m, _ = step(t, m, key("enter"))
 	m, _ = tickNow(t, m)
 	if m.screen != screenPlaying {
@@ -159,6 +164,7 @@ func TestGamePanicShowsCrashScreen(t *testing.T) {
 		t.Errorf("closed = %d, want 1", g.closed)
 	}
 	// Relaunching builds a fresh instance rather than reusing the crashed one.
+	m, _ = step(t, m, key("l"))
 	m, _ = step(t, m, key("enter"))
 	if m.screen != screenPlaying {
 		t.Fatalf("relaunch after crash failed: %v", m.screen)
@@ -171,6 +177,7 @@ func TestRegistrationErrorStaysOnMenu(t *testing.T) {
 		New:  func() (sdk.Game, error) { return nil, errBroken },
 	}
 	m := newTestShellReg(t, reg)
+	m, _ = step(t, m, key("l"))
 	m, cmd := step(t, m, key("enter"))
 	if m.screen != screenMenu || cmd != nil {
 		t.Fatalf("screen = %v after failed launch", m.screen)
@@ -185,6 +192,7 @@ var errBroken = errors.New("does not load")
 func TestQuitToMenuClosesGame(t *testing.T) {
 	g := &fakeGame{}
 	m := newTestShell(t, g)
+	m, _ = step(t, m, key("l"))
 	m, _ = step(t, m, key("enter"))
 	m, _ = step(t, m, key("esc")) // pause
 	m, _ = step(t, m, key("j"))
@@ -217,6 +225,7 @@ func TestHUDSanitizesControlCharacters(t *testing.T) {
 func TestKeyForwardingAndPause(t *testing.T) {
 	g := &fakeGame{}
 	m := newTestShell(t, g)
+	m, _ = step(t, m, key("l"))
 	m, _ = step(t, m, key("enter"))
 
 	m, _ = step(t, m, key("a")) // maps to KeyLeft
@@ -272,6 +281,7 @@ func TestKeyForwardingAndPause(t *testing.T) {
 func TestGameOverScoreAndReplay(t *testing.T) {
 	g := &fakeGame{endAfter: 3}
 	m := newTestShell(t, g)
+	m, _ = step(t, m, key("l"))
 	m, _ = step(t, m, key("enter"))
 	m, _ = step(t, m, key(" ")) // score 5 via HandleKey
 	for i := 0; i < 3; i++ {
@@ -314,6 +324,7 @@ func TestGameOverScoreAndReplay(t *testing.T) {
 func TestTooSmallTerminal(t *testing.T) {
 	g := &fakeGame{}
 	m := newTestShell(t, g)
+	m, _ = step(t, m, key("l"))
 	m, _ = step(t, m, key("enter"))
 	m, _ = step(t, m, tea.WindowSizeMsg{Width: 10, Height: 5})
 	if !strings.Contains(view(m), "too small") {
@@ -456,10 +467,11 @@ func TestMarketInstallRequiresSignin(t *testing.T) {
 		t.Errorf("installed marker missing:\n%s", out)
 	}
 
-	// Back on the menu, the new game is listed.
+	// Back through the index, the library lists the new game.
 	mm, _ = step(t, mm, key("esc"))
+	mm, _ = step(t, mm, key("l"))
 	if out := view(mm); !strings.Contains(out, "BLASTER") {
-		t.Error("menu missing the installed game")
+		t.Error("library missing the installed game")
 	}
 }
 
@@ -494,9 +506,10 @@ func TestMenuRemoveInstalledGame(t *testing.T) {
 	mm = drain(t, mm, cmd)
 	mm, cmd = step(t, mm, key("enter")) // install Blaster
 	mm = drain(t, mm, cmd)
-	mm, _ = step(t, mm, key("esc")) // back to the menu
+	mm, _ = step(t, mm, key("esc")) // back to the index
+	mm, _ = step(t, mm, key("l"))   // into the library
 	if !strings.Contains(view(mm), "BLASTER") {
-		t.Fatal("installed game missing from menu")
+		t.Fatal("installed game missing from library")
 	}
 
 	// r on a builtin refuses politely.
@@ -520,9 +533,33 @@ func TestMenuRemoveInstalledGame(t *testing.T) {
 	}
 	out := view(mm)
 	if strings.Contains(out, "BLASTER") && !strings.Contains(out, "removed acme/blaster") {
-		t.Errorf("menu still lists the removed game:\n%s", out)
+		t.Errorf("library still lists the removed game:\n%s", out)
 	}
 	if !strings.Contains(out, "removed acme/blaster") {
 		t.Error("no removal notice shown")
+	}
+}
+
+func TestIndexShowsRecentlyPlayed(t *testing.T) {
+	g := &fakeGame{}
+	m := newTestShell(t, g)
+	if strings.Contains(view(m), "recently played") {
+		t.Fatal("fresh index claims recent games")
+	}
+	m, _ = step(t, m, key("l"))
+	m, _ = step(t, m, key("enter")) // play
+	m, _ = step(t, m, key("esc"))   // pause
+	m, _ = step(t, m, key("j"))
+	m, _ = step(t, m, key("j"))
+	m, _ = step(t, m, key("enter")) // Quit to Menu
+
+	out := view(m)
+	if !strings.Contains(out, "recently played") || !strings.Contains(out, "FAKE") {
+		t.Fatalf("index missing the recent game:\n%s", out)
+	}
+	// Enter on the recent row starts it directly, without the library.
+	m, cmd := step(t, m, key("enter"))
+	if m.screen != screenPlaying || cmd == nil {
+		t.Fatalf("recent row did not start the game: screen=%v", m.screen)
 	}
 }

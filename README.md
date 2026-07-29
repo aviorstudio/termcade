@@ -78,15 +78,17 @@ the auto-repeat heuristic.
 | space or z | A button: launch ball / fire / hard drop |
 | x | B button |
 | esc or p | pause |
-| m (menu) | marketplace |
-| r (menu) | remove the selected added game |
+| l (index) | library — every game you have |
+| m (index/library) | marketplace |
+| r (index/library) | remove the selected added game |
 | q | quit (from menu) |
 
 High scores persist to `~/.config/termcade/scores.json`.
 
 ## The marketplace
 
-Press `m` on the arcade menu to browse the marketplace — no account needed to
+The arcade opens on your recently played games, with the library (`l`) and
+marketplace (`m`) one keystroke away. Press `m` to browse the marketplace — no account needed to
 look. Adding a game to your arcade requires signing in, and the arcade has
 its own sign-in/sign-up screens, so you never need the website. Your library
 follows your account across machines.
