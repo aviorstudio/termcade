@@ -26,11 +26,7 @@ func newMarketplace(rt *plugin.Runtime, shape sdk.CellShape) *shell.Marketplace 
 	}
 
 	reload := func() []engine.Registration {
-		games := builtins()
-		if dir, err := plugin.GamesDir(); err == nil {
-			games = plugin.Games(rt, dir, games, shape)
-		}
-		return games
+		return discoverGames(rt, shape)
 	}
 
 	return &shell.Marketplace{

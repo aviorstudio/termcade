@@ -58,9 +58,6 @@ func (m Model) viewLibrary() string {
 			if high := m.scores.High(g.Info.ID); high > 0 {
 				line += dimStyle.Render("  ··· high " + strconv.Itoa(high))
 			}
-			if g.Installed {
-				line += dimStyle.Render("  · added")
-			}
 			if i == m.libIdx {
 				b.WriteString(selectedStyle.Render("▸" + line[1:]))
 			} else {

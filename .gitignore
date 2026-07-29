@@ -4,4 +4,8 @@
 /dist/
 games/*/build/
 *.tcade
+# …except the starter pack: embedded in the binary, so remote module builds
+# (`go run …@latest`) only see committed files. Content assets, not build
+# output — regenerate with `go generate ./internal/starter`.
+!internal/starter/packs/*.tcade
 game.wasm

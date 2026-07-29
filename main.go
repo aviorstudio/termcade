@@ -8,31 +8,27 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
-	"github.com/aviorstudio/termcade/games/asteroid"
-	"github.com/aviorstudio/termcade/games/tetris"
 	"github.com/aviorstudio/termcade/internal/engine"
 	"github.com/aviorstudio/termcade/internal/plugin"
 	"github.com/aviorstudio/termcade/internal/scores"
 	"github.com/aviorstudio/termcade/internal/shell"
+	"github.com/aviorstudio/termcade/internal/starter"
 	"github.com/aviorstudio/termcade/sdk"
 )
 
-// builtin adapts a game constructor into a menu registration. Game packages
-// are sdk-only — exactly the shape a third-party game has — so the arcade
-// side of the contract lives here, not in them.
-func builtin(new func() sdk.Game) engine.Registration {
-	info := new().Info()
-	return engine.Registration{Info: info, New: func() (sdk.Game, error) { return new(), nil }}
-}
-
-// builtins are the games compiled into the arcade. Brickough is deliberately
-// absent: it ships as a .tcade package (see games/brickough), keeping the
-// install path honestly exercised.
-func builtins() []engine.Registration {
-	return []engine.Registration{
-		builtin(asteroid.New),
-		builtin(tetris.New),
+// discoverGames seeds the starter pack on first run, then loads every
+// installed game. The arcade compiles no games in — everything on the menu
+// is a .tcade running in the sandbox, bundled or added.
+func discoverGames(rt *plugin.Runtime, shape sdk.CellShape) []engine.Registration {
+	dir, err := plugin.GamesDir()
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "termcade: games directory unavailable:", err)
+		return nil
 	}
+	if err := starter.Seed(dir); err != nil {
+		fmt.Fprintln(os.Stderr, "termcade: starter pack:", err)
+	}
+	return plugin.Games(rt, dir, nil, shape)
 }
 
 // version is stamped by the release build (-X main.version=…). When it
@@ -63,12 +59,7 @@ func main() {
 
 	rt := plugin.NewRuntime(context.Background())
 	defer rt.Close()
-	games := builtins()
-	if dir, err := plugin.GamesDir(); err == nil {
-		games = plugin.Games(rt, dir, games, shape)
-	} else {
-		fmt.Fprintln(os.Stderr, "termcade: installed games unavailable:", err)
-	}
+	games := discoverGames(rt, shape)
 
 	p := tea.NewProgram(shell.New(games, st, shape, newMarketplace(rt, shape)))
 	if _, err := p.Run(); err != nil {

@@ -24,7 +24,7 @@ usage:
   termcade add <game>          add a game: author/slug from the marketplace,
                                or a .tcade file or URL (login required)
   termcade remove <id>         remove an added game (id is author/slug)
-  termcade list                list builtin and added games
+  termcade list                list the games in your arcade
 
   termcade signup [email]      create a marketplace account
   termcade login [email]       sign in (adding games requires it)
@@ -179,12 +179,6 @@ func installPackage(raw []byte) error {
 		return err
 	}
 	fmt.Printf("added %s %s → %s\n", pkg.Manifest.Game.ID, pkg.Manifest.Game.Version, dest)
-	for _, b := range builtins() {
-		if b.Info.ID == pkg.Manifest.Game.ID {
-			fmt.Printf("note: %s shadows a builtin game — the added version will be played; `termcade remove %s` restores the builtin\n",
-				pkg.Manifest.Game.ID, pkg.Manifest.Game.ID)
-		}
-	}
 	return nil
 }
 
@@ -254,19 +248,12 @@ func cmdList() error {
 	rt := plugin.NewRuntime(context.Background())
 	defer rt.Close()
 
-	games := builtins()
-	if gamesDir, err := plugin.GamesDir(); err == nil {
-		games = plugin.Games(rt, gamesDir, games, pixelShape())
-	}
-	for _, g := range games {
-		switch {
-		case g.Err != nil:
+	for _, g := range discoverGames(rt, pixelShape()) {
+		if g.Err != nil {
 			fmt.Printf("%-24s %-28s broken: %v\n", g.Info.Title, g.Info.ID, g.Err)
-		case g.Installed:
-			fmt.Printf("%-24s %-28s added\n", g.Info.Title, g.Info.ID)
-		default:
-			fmt.Printf("%-24s %-28s builtin\n", g.Info.Title, g.Info.ID)
+			continue
 		}
+		fmt.Printf("%-24s %-28s installed\n", g.Info.Title, g.Info.ID)
 	}
 	return nil
 }

@@ -1,0 +1,58 @@
+// Package starter seeds a fresh arcade with its bundled games.
+//
+// The arcade compiles no games in: everything is a .tcade package running in
+// the wasm sandbox, exactly like a marketplace game. The starter pack is the
+// first-run answer to "then where do the games come from before you have an
+// account or a network" — packages embedded in the binary and unpacked into
+// the games directory the first time the arcade looks for it.
+//
+// The packs are COMMITTED, deliberately breaking the no-binaries rule:
+// `go run …@latest` builds from the module zip, which contains only
+// committed files, so an uncommitted pack would silently vanish from
+// remote installs. They are content assets, rebuilt only when a bundled
+// game meaningfully changes (see the go:generate lines).
+package starter
+
+import (
+	"embed"
+	"fmt"
+	"os"
+
+	"github.com/aviorstudio/termcade/internal/manifest"
+)
+
+//go:generate sh -c "cd ../.. && go run . dev build games/asteroid && cp games/asteroid/build/asteroid.tcade internal/starter/packs/"
+//go:generate sh -c "cd ../.. && go run . dev build games/tetris && cp games/tetris/build/tetris.tcade internal/starter/packs/"
+
+//go:embed packs/*.tcade
+var packs embed.FS
+
+// Seed unpacks the bundled games into gamesDir on first run. First run means
+// the games directory does not exist yet: removing a single starter game
+// sticks, and only deleting the whole directory invites the pack back.
+func Seed(gamesDir string) error {
+	if _, err := os.Stat(gamesDir); err == nil {
+		return nil // not the first run
+	}
+	entries, err := packs.ReadDir("packs")
+	if err != nil {
+		return err
+	}
+	if err := os.MkdirAll(gamesDir, 0o755); err != nil {
+		return err
+	}
+	for _, entry := range entries {
+		raw, err := packs.ReadFile("packs/" + entry.Name())
+		if err != nil {
+			return err
+		}
+		pkg, err := manifest.ReadPackage(raw)
+		if err != nil {
+			return fmt.Errorf("bundled %s: %w", entry.Name(), err)
+		}
+		if _, err := pkg.Install(gamesDir); err != nil {
+			return fmt.Errorf("seeding %s: %w", pkg.Manifest.Game.ID, err)
+		}
+	}
+	return nil
+}
