@@ -119,9 +119,10 @@ and [docs/abi.md](docs/abi.md) for the frozen wasm ABI (for non-Go
 toolchains). `termcade dev build` turns a game directory into an installable
 package.
 
-`games/brickough` is the worked example: a complete game that depends only on
-the `sdk` module and ships purely as a `.tcade` built from its `cmd/wasm`
-entrypoint — exactly the shape of a third-party game.
+Every game under `games/` is a worked example — complete games depending
+only on the `sdk` module, each buildable into a `.tcade` via its `cmd/wasm`
+entrypoint. Brickough ships only that way; asteroid and tetris are also
+compiled in as builtins.
 
 ## Architecture
 
@@ -141,10 +142,10 @@ entrypoint — exactly the shape of a third-party game.
   overlays.
 - `internal/scores` — atomic JSON high-score persistence, namespaced by
   `author/slug`.
-- `internal/games/*` — builtin games; each registers in
-  `cmd/termcade/main.go` with one line.
-- `games/*` — installable games, sdk-only packages with a `cmd/wasm`
-  entrypoint and a `termcade.toml`.
+- `games/*` — every game, builtin or not: sdk-only packages with a
+  `cmd/wasm` entrypoint and a `termcade.toml`, exactly the shape a
+  third-party game has. Builtins are just the ones `cmd/termcade/main.go`
+  also compiles in.
 
 ## Development
 
