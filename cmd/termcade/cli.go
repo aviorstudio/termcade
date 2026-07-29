@@ -317,7 +317,13 @@ func cmdDevBuild(args []string) error {
 		return err
 	}
 
-	out := m.Slug() + ".tcade"
+	// Output lands inside the game directory, never the invoker's cwd; build
+	// artifacts stay next to what built them (and out of version control).
+	buildDir := filepath.Join(dir, "build")
+	if err := os.MkdirAll(buildDir, 0o755); err != nil {
+		return err
+	}
+	out := filepath.Join(buildDir, m.Slug()+".tcade")
 	if err := manifest.WritePackage(out, manifestRaw, wasm); err != nil {
 		return err
 	}

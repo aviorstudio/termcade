@@ -1,5 +1,7 @@
-# Build artifacts. Binaries never get committed; releases ship from CI.
+# Build artifacts. Binaries and packages never get committed; releases ship
+# from CI, and `termcade dev build` writes into <game>/build/.
 /bin/
 /dist/
+games/*/build/
 *.tcade
 game.wasm
