@@ -35,7 +35,7 @@ runs:
           [ "$GOOS" = windows ] && bin=termcade.exe
           CGO_ENABLED=0 GOOS="$GOOS" GOARCH="$GOARCH" \
             go build -trimpath -ldflags "-s -w -X main.version=$VERSION" \
-            -o "dist/$bin" ./cmd/termcade
+            -o "dist/$bin" .
           name="termcade_$(echo "$GOOS" | sed 's/./\U&/')_${GOARCH}"
           case "$GOARCH" in amd64) name="termcade_$(echo "$GOOS" | sed 's/./\U&/')_x86_64";; esac
           if [ "$GOOS" = windows ]; then
