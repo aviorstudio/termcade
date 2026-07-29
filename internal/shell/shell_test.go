@@ -335,8 +335,9 @@ func fakeMarket(signedIn *bool, installed *[]engine.Registration) *Marketplace {
 		List: func() ([]MarketGame, error) { return games, nil },
 		Install: func(id string) error {
 			*installed = append(*installed, engine.Registration{
-				Info: sdk.Info{ID: id, Title: "BLASTER", PixelW: 8, PixelH: 8},
-				New:  func() (sdk.Game, error) { return &fakeGame{}, nil },
+				Info:      sdk.Info{ID: id, Title: "BLASTER", PixelW: 8, PixelH: 8},
+				New:       func() (sdk.Game, error) { return &fakeGame{}, nil },
+				Installed: true,
 			})
 			return nil
 		},
@@ -483,5 +484,45 @@ func TestMarketRemoveAndLogout(t *testing.T) {
 	}
 	if !strings.Contains(view(mm), "browsing as guest") {
 		t.Error("logout not reflected in header")
+	}
+}
+
+func TestMenuRemoveInstalledGame(t *testing.T) {
+	m, signedIn, installed := newMarketShell(t)
+	*signedIn = true
+	mm, cmd := step(t, m, key("m"))
+	mm = drain(t, mm, cmd)
+	mm, cmd = step(t, mm, key("enter")) // install Blaster
+	mm = drain(t, mm, cmd)
+	mm, _ = step(t, mm, key("esc")) // back to the menu
+	if !strings.Contains(view(mm), "BLASTER") {
+		t.Fatal("installed game missing from menu")
+	}
+
+	// r on a builtin refuses politely.
+	mm, cmd = step(t, mm, key("r"))
+	if cmd != nil || len(*installed) != 1 {
+		t.Fatal("r on a builtin started a removal")
+	}
+	if !strings.Contains(view(mm), "built in") {
+		t.Error("no builtin notice shown")
+	}
+
+	// r on the installed game removes it and the menu updates.
+	mm, _ = step(t, mm, key("j"))
+	mm, cmd = step(t, mm, key("r"))
+	if cmd == nil {
+		t.Fatal("r on an installed game did nothing")
+	}
+	mm = drain(t, mm, cmd)
+	if len(*installed) != 0 {
+		t.Fatal("remove hook not called")
+	}
+	out := view(mm)
+	if strings.Contains(out, "BLASTER") && !strings.Contains(out, "removed acme/blaster") {
+		t.Errorf("menu still lists the removed game:\n%s", out)
+	}
+	if !strings.Contains(out, "removed acme/blaster") {
+		t.Error("no removal notice shown")
 	}
 }

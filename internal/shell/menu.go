@@ -33,10 +33,29 @@ func (m Model) updateMenuKey(key string) (tea.Model, tea.Cmd) {
 		if m.mp != nil {
 			return m.openMarket()
 		}
+	case "r":
+		return m.removeFromMenu()
 	case "enter":
 		return m.startGame(m.menuIdx)
 	}
 	return m, nil
+}
+
+// removeFromMenu removes the selected game when it is an installed one.
+// Builtins are compiled in — nothing to remove — and an installed game that
+// shadows a builtin reverts to the builtin on the reload.
+func (m Model) removeFromMenu() (tea.Model, tea.Cmd) {
+	if m.mp == nil || m.market.busy || len(m.games) == 0 {
+		return m, nil
+	}
+	reg := m.games[m.menuIdx]
+	if !reg.Installed {
+		m.notice = reg.Info.Title + " is built in — nothing to remove"
+		return m, nil
+	}
+	m.market.busy = true
+	m.notice = "removing " + reg.Info.ID + "…"
+	return m, m.removeCmd(reg.Info.ID)
 }
 
 func (m Model) viewMenu() string {
@@ -71,7 +90,7 @@ func (m Model) viewMenu() string {
 	b.WriteString("\n")
 	hint := "↑/↓ select · enter play · q quit"
 	if m.mp != nil {
-		hint = "↑/↓ select · enter play · m marketplace · q quit"
+		hint = "↑/↓ select · enter play · m marketplace · r remove · q quit"
 	}
 	b.WriteString(dimStyle.Render(hint))
 	if m.notice != "" {
