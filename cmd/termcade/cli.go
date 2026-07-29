@@ -67,7 +67,7 @@ func runCommand(args []string) bool {
 			err = fmt.Errorf("unknown dev subcommand; try: termcade dev new <author/slug> · termcade dev build [dir]")
 		}
 	case "version", "-v", "--version":
-		fmt.Println("termcade", version)
+		fmt.Println("termcade", resolveVersion())
 	case "help", "-h", "--help":
 		fmt.Print(usage)
 	default:
