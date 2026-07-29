@@ -149,7 +149,8 @@ entrypoint — exactly the shape of a third-party game.
 ## Development
 
 ```sh
-go test ./...        # unit + shell tests
+go build -o bin/termcade ./cmd/termcade   # local builds land in bin/ (gitignored)
+go test ./...                # unit + shell tests
 go test ./internal/plugin/   # includes wasm end-to-end tests (builds guests)
 go vet ./...
 ```
