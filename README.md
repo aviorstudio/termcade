@@ -25,11 +25,16 @@ termcade dev build games/brickough && termcade add brickough.tcade
 
 ## Run
 
-Requires Go (pinned via [mise](https://mise.jdx.dev) — `mise install`).
+With Go installed, straight from the internet:
 
 ```sh
-go run ./cmd/termcade
+go run github.com/aviorstudio/termcade/cmd/termcade@latest
 ```
+
+Or grab a prebuilt archive from the
+[releases](https://github.com/aviorstudio/termcade/releases). From a
+checkout (toolchain pinned via [mise](https://mise.jdx.dev) — `mise
+install`): `go run ./cmd/termcade`.
 
 Needs a truecolor terminal at 80×24 or larger.
 

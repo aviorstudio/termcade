@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"runtime/debug"
 
 	tea "charm.land/bubbletea/v2"
 
@@ -26,9 +27,20 @@ func builtins() []engine.Registration {
 	}
 }
 
-// version is stamped by the release build (-X main.version=…); "dev" means a
-// from-source build.
+// version is stamped by the release build (-X main.version=…). When it
+// isn't — `go run …@v0.0.2` compiles without our ldflags — the module
+// version Go embeds in the binary is the same truth.
 var version = "dev"
+
+func resolveVersion() string {
+	if version != "dev" {
+		return version
+	}
+	if info, ok := debug.ReadBuildInfo(); ok && info.Main.Version != "(devel)" && info.Main.Version != "" {
+		return info.Main.Version
+	}
+	return version
+}
 
 func main() {
 	if runCommand(os.Args[1:]) {
