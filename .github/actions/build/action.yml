@@ -1,0 +1,53 @@
+name: Build
+description: >
+  Everything a release ships: the arcade binary for every platform, archived,
+  with checksums.
+
+  Shared by CI and Release so a pull request builds exactly what a release
+  builds, with no switches between them. The only difference is that one of
+  them goes on to publish.
+
+  NOTHING LEAVES THE RUNNER. The archives are left in ./dist; creating the
+  tag and the GitHub release is the caller's move.
+
+inputs:
+  version:
+    description: Version to stamp into the binary (without the v)
+    required: false
+    default: dev
+
+runs:
+  using: composite
+  steps:
+    - name: Cross-compile
+      shell: bash
+      env:
+        VERSION: ${{ inputs.version }}
+      run: |
+        set -euo pipefail
+        mkdir -p dist
+        # linux/386 and friends excluded on purpose: wazero's compiler backend
+        # covers amd64/arm64, and everything else falls back to the
+        # interpreter — playable, but not something worth publishing.
+        for target in linux/amd64 linux/arm64 darwin/amd64 darwin/arm64 windows/amd64; do
+          GOOS="${target%/*}"; GOARCH="${target#*/}"
+          bin=termcade
+          [ "$GOOS" = windows ] && bin=termcade.exe
+          CGO_ENABLED=0 GOOS="$GOOS" GOARCH="$GOARCH" \
+            go build -trimpath -ldflags "-s -w -X main.version=$VERSION" \
+            -o "dist/$bin" ./cmd/termcade
+          name="termcade_$(echo "$GOOS" | sed 's/./\U&/')_${GOARCH}"
+          case "$GOARCH" in amd64) name="termcade_$(echo "$GOOS" | sed 's/./\U&/')_x86_64";; esac
+          if [ "$GOOS" = windows ]; then
+            (cd dist && zip -q "${name}.zip" "$bin" && rm "$bin")
+          else
+            tar -czf "dist/${name}.tar.gz" -C dist "$bin" && rm "dist/$bin"
+          fi
+        done
+
+    - name: Checksums
+      shell: bash
+      run: |
+        set -euo pipefail
+        (cd dist && sha256sum *.tar.gz *.zip > checksums.txt)
+        cat dist/checksums.txt

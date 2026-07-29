@@ -1,0 +1,122 @@
+name: Release
+
+# Cut an arcade release: bump the tag, cross-compile, publish archives with
+# checksums and build provenance.
+#
+# The tag is a PLAIN v0.0.1, not a prefixed one. This repository is the Go
+# module, so `go run github.com/aviorstudio/termcade/cmd/termcade@v0.0.2`
+# only resolves if the tag is exactly that. A prefixed tag would publish a
+# release nobody could install by version, and `@latest` would go on
+# resolving to a pseudo-version of whatever main happened to be.
+#
+# The sdk module has its own tags (sdk/v*) and its own workflow: an arcade
+# release does not imply an SDK contract change, and vice versa.
+
+on:
+  workflow_dispatch:
+    inputs:
+      bump:
+        description: Version bump
+        required: true
+        type: choice
+        options:
+          - patch
+          - minor
+          - major
+
+permissions: {}
+
+concurrency: release-${{ github.repository }}
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # create the tag and the release
+      id-token: write # OIDC identity for build provenance
+      attestations: write # record the provenance attestation
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Determine release version
+        id: release
+        env:
+          BUMP: ${{ inputs.bump }}
+        run: |
+          set -euo pipefail
+          if [ "$GITHUB_REF" != "refs/heads/main" ]; then
+            echo 'Run releases from the main branch.' >&2
+            exit 1
+          fi
+          git fetch --tags --force
+          latest="$(git tag --list 'v[0-9]*' | sed -E 's/^v//' | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -n 1 || true)"
+          if [ -z "$latest" ]; then
+            version="0.0.1"
+          else
+            IFS=. read -r major minor patch <<< "$latest"
+            case "$BUMP" in
+              major) major=$((major + 1)); minor=0; patch=0 ;;
+              minor) minor=$((minor + 1)); patch=0 ;;
+              patch) patch=$((patch + 1)) ;;
+              *) echo "Unsupported bump: $BUMP" >&2; exit 1 ;;
+            esac
+            version="${major}.${minor}.${patch}"
+          fi
+          tag="v${version}"
+          if git rev-parse -q --verify "refs/tags/$tag" >/dev/null; then
+            echo "Tag already exists: $tag" >&2
+            exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache-dependency-path: go.sum
+
+      # The same steps CI runs, from the same definition. Running them again
+      # against this exact commit is not redundant: CI passing on this SHA
+      # earlier is a claim about that run, and a release is the artefact
+      # people actually execute.
+      - name: Test
+        uses: ./.github/actions/test
+
+      - name: Build
+        uses: ./.github/actions/build
+        with:
+          version: ${{ steps.release.outputs.version }}
+
+      # Installed games run sandboxed, but the arcade itself runs with the
+      # player's full permissions — worth tying the archives to this workflow,
+      # this repository and this commit.
+      - name: Attest build provenance
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: |
+            dist/*.tar.gz
+            dist/*.zip
+
+      - name: Create the release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ steps.release.outputs.tag }}
+        run: |
+          set -euo pipefail
+          cat > dist/notes.md <<NOTES
+          termcade $TAG
+
+          \`\`\`sh
+          go run github.com/aviorstudio/termcade/cmd/termcade@$TAG
+          \`\`\`
+
+          Or take an archive below and verify it:
+
+          \`\`\`sh
+          gh attestation verify termcade_Linux_x86_64.tar.gz --repo $GITHUB_REPOSITORY
+          \`\`\`
+          NOTES
+          gh release create "$TAG" dist/*.tar.gz dist/*.zip dist/checksums.txt \
+            --target "$GITHUB_SHA" --title "$TAG" --notes-file dist/notes.md

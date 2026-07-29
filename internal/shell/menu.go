@@ -29,6 +29,10 @@ func (m Model) updateMenuKey(key string) (tea.Model, tea.Cmd) {
 		m.menuIdx = (m.menuIdx + len(m.games) - 1) % len(m.games)
 	case "down", "j":
 		m.menuIdx = (m.menuIdx + 1) % len(m.games)
+	case "m":
+		if m.mp != nil {
+			return m.openMarket()
+		}
 	case "enter":
 		return m.startGame(m.menuIdx)
 	}
@@ -65,7 +69,11 @@ func (m Model) viewMenu() string {
 		b.WriteByte('\n')
 	}
 	b.WriteString("\n")
-	b.WriteString(dimStyle.Render("↑/↓ select · enter play · q quit"))
+	hint := "↑/↓ select · enter play · q quit"
+	if m.mp != nil {
+		hint = "↑/↓ select · enter play · m marketplace · q quit"
+	}
+	b.WriteString(dimStyle.Render(hint))
 	if m.notice != "" {
 		b.WriteString("\n\n" + dimStyle.Render(m.notice))
 	}

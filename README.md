@@ -76,13 +76,26 @@ the auto-repeat heuristic.
 
 High scores persist to `~/.config/termcade/scores.json`.
 
-## Adding games
+## The marketplace
+
+Press `m` on the arcade menu to browse the marketplace — no account needed to
+look. Adding a game to your arcade requires signing in, and the arcade has
+its own sign-in/sign-up screens, so you never need the website. Your library
+follows your account across machines.
+
+The same works from the command line:
 
 ```sh
-termcade add <file-or-url>.tcade   # put a game on the menu
+termcade signup                    # create an account (or: termcade login)
+termcade add aviorstudio/brickough # add straight from the marketplace
+termcade add <file-or-url>.tcade   # or from a package you have
 termcade list                      # what's here
-termcade remove author/slug        # take one off
+termcade remove author/slug        # take one off (updates your library too)
 ```
+
+The registry defaults to local dev (`http://127.0.0.1:8080`, the termcade-be
+stack); point `TERMCADE_REGISTRY` elsewhere until termcade.com is live.
+Downloads are verified against the registry's sha256 before install.
 
 Installed games are WebAssembly modules that run sandboxed (no filesystem, no
 network) under [wazero](https://wazero.io). A broken install shows up dimmed

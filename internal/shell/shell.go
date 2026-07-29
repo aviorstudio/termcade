@@ -30,6 +30,8 @@ const (
 	screenPaused
 	screenGameOver
 	screenCrashed
+	screenMarket
+	screenAuth
 )
 
 type tickMsg struct {
@@ -53,6 +55,9 @@ type Model struct {
 	newHigh  bool
 	notice   string // menu-level message, e.g. a game that failed to load
 	crash    string // what the crash screen shows
+	mp       *Marketplace
+	market   marketState
+	auth     authState
 	termW    int
 	termH    int
 	tickGen  int
@@ -60,8 +65,9 @@ type Model struct {
 	accum    time.Duration
 }
 
-func New(games []engine.Registration, st *scores.Store, shape sdk.CellShape) Model {
-	return Model{games: games, scores: st, shape: shape}
+// New builds the arcade model. mp may be nil, which hides the marketplace.
+func New(games []engine.Registration, st *scores.Store, shape sdk.CellShape, mp *Marketplace) Model {
+	return Model{games: games, scores: st, shape: shape, mp: mp}
 }
 
 func (m Model) Init() tea.Cmd { return nil }
@@ -72,6 +78,11 @@ func (m Model) tick() tea.Cmd {
 }
 
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	if m.mp != nil {
+		if mm, cmd, handled := m.updateMarketMsg(msg); handled {
+			return mm, cmd
+		}
+	}
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.termW, m.termH = msg.Width, msg.Height
@@ -79,6 +90,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tickMsg:
 		return m.updateTick(msg)
 	case tea.KeyPressMsg:
+		if m.screen == screenAuth {
+			return m.updateAuthKey(msg)
+		}
 		return m.updateKey(msg.String())
 	case tea.KeyReleaseMsg:
 		if m.screen == screenPlaying {
@@ -190,6 +204,8 @@ func (m Model) updateKey(key string) (tea.Model, tea.Cmd) {
 		}
 	case screenCrashed:
 		return m.quitToMenu(), nil // any key dismisses the wreckage
+	case screenMarket:
+		return m.updateMarketKey(key)
 	}
 	return m, nil
 }
@@ -314,6 +330,10 @@ func (m Model) View() tea.View {
 	switch m.screen {
 	case screenMenu:
 		block = m.viewMenu()
+	case screenMarket:
+		block = m.viewMarket()
+	case screenAuth:
+		block = m.viewAuth()
 	default:
 		block = m.viewGame()
 	}

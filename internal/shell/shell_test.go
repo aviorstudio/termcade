@@ -65,7 +65,7 @@ func newTestShellReg(t *testing.T, reg engine.Registration) Model {
 	if err != nil {
 		t.Fatal(err)
 	}
-	m := New([]engine.Registration{reg}, st, sdk.Quadrant)
+	m := New([]engine.Registration{reg}, st, sdk.Quadrant, nil)
 	mm, _ := m.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
 	return mm.(Model)
 }
@@ -322,5 +322,166 @@ func TestTooSmallTerminal(t *testing.T) {
 	m, _ = step(t, m, tea.WindowSizeMsg{Width: 80, Height: 24})
 	if strings.Contains(view(m), "too small") {
 		t.Error("too-small notice persisted after resize")
+	}
+}
+
+// fakeMarket scripts the Marketplace hooks for TUI tests.
+func fakeMarket(signedIn *bool, installed *[]engine.Registration) *Marketplace {
+	games := []MarketGame{
+		{ID: "acme/blaster", Name: "Blaster", Description: "pew", Version: "1.0.0", HasPackage: true},
+		{ID: "acme/nopack", Name: "NoPack", Version: "0.1.0", HasPackage: false},
+	}
+	return &Marketplace{
+		List: func() ([]MarketGame, error) { return games, nil },
+		Install: func(id string) error {
+			*installed = append(*installed, engine.Registration{
+				Info: sdk.Info{ID: id, Title: "BLASTER", PixelW: 8, PixelH: 8},
+				New:  func() (sdk.Game, error) { return &fakeGame{}, nil },
+			})
+			return nil
+		},
+		Remove: func(id string) error {
+			*installed = (*installed)[:0]
+			return nil
+		},
+		Account: func() (string, bool) {
+			if *signedIn {
+				return "p@t.dev", true
+			}
+			return "", false
+		},
+		SignIn:  func(email, password string) error { *signedIn = true; return nil },
+		SignUp:  func(email, password string) error { *signedIn = true; return nil },
+		SignOut: func() error { *signedIn = false; return nil },
+		Reload: func() []engine.Registration {
+			g := &fakeGame{}
+			base := []engine.Registration{{
+				Info: g.Info(),
+				New:  func() (sdk.Game, error) { return g, nil },
+			}}
+			return append(base, *installed...)
+		},
+	}
+}
+
+func newMarketShell(t *testing.T) (Model, *bool, *[]engine.Registration) {
+	t.Helper()
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	st, err := scores.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	signedIn := false
+	var installed []engine.Registration
+	mp := fakeMarket(&signedIn, &installed)
+	m := New(mp.Reload(), st, sdk.Quadrant, mp)
+	mm, _ := m.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
+	return mm.(Model), &signedIn, &installed
+}
+
+// drain runs a command chain to completion, feeding messages back in.
+func drain(t *testing.T, m Model, cmd tea.Cmd) Model {
+	t.Helper()
+	for cmd != nil {
+		msg := cmd()
+		if msg == nil {
+			break
+		}
+		var mm tea.Model
+		mm, cmd = m.Update(msg)
+		m = mm.(Model)
+	}
+	return m
+}
+
+func TestMarketBrowseAnonymous(t *testing.T) {
+	m, _, _ := newMarketShell(t)
+	if !strings.Contains(view(m), "m marketplace") {
+		t.Fatal("menu does not advertise the marketplace")
+	}
+	mm, cmd := step(t, m, key("m"))
+	if mm.screen != screenMarket || cmd == nil {
+		t.Fatalf("m key: screen=%v", mm.screen)
+	}
+	mm = drain(t, mm, cmd)
+	out := view(mm)
+	for _, want := range []string{"MARKETPLACE", "browsing as guest", "Blaster", "no package yet"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("marketplace view missing %q", want)
+		}
+	}
+}
+
+func TestMarketInstallRequiresSignin(t *testing.T) {
+	m, signedIn, installed := newMarketShell(t)
+	mm, cmd := step(t, m, key("m"))
+	mm = drain(t, mm, cmd)
+
+	// Enter on Blaster while signed out lands on the account chooser.
+	mm, _ = step(t, mm, key("enter"))
+	if mm.screen != screenAuth {
+		t.Fatalf("screen = %v, want auth", mm.screen)
+	}
+	if !strings.Contains(view(mm), "sign in") {
+		t.Fatal("auth chooser not shown")
+	}
+
+	// Choose "create account", type credentials, submit.
+	mm, _ = step(t, mm, key("j"))
+	mm, _ = step(t, mm, key("enter"))
+	for _, r := range "p@t.dev" {
+		mm, _ = step(t, mm, key(string(r)))
+	}
+	mm, _ = step(t, mm, key("tab"))
+	for _, r := range "password123" {
+		mm, _ = step(t, mm, key(string(r)))
+	}
+	mm, cmd = step(t, mm, key("enter"))
+	if cmd == nil {
+		t.Fatal("no auth command issued")
+	}
+	mm = drain(t, mm, cmd)
+
+	if !*signedIn {
+		t.Fatal("signup hook not called")
+	}
+	if len(*installed) != 1 || (*installed)[0].Info.ID != "acme/blaster" {
+		t.Fatalf("pending install did not resume: %+v", *installed)
+	}
+	if mm.screen != screenMarket {
+		t.Fatalf("screen = %v after auth+install", mm.screen)
+	}
+	if out := view(mm); !strings.Contains(out, "in your arcade") {
+		t.Errorf("installed marker missing:\n%s", out)
+	}
+
+	// Back on the menu, the new game is listed.
+	mm, _ = step(t, mm, key("esc"))
+	if out := view(mm); !strings.Contains(out, "BLASTER") {
+		t.Error("menu missing the installed game")
+	}
+}
+
+func TestMarketRemoveAndLogout(t *testing.T) {
+	m, signedIn, installed := newMarketShell(t)
+	*signedIn = true
+	mm, cmd := step(t, m, key("m"))
+	mm = drain(t, mm, cmd)
+	mm, cmd = step(t, mm, key("enter")) // install while signed in
+	mm = drain(t, mm, cmd)
+	if len(*installed) != 1 {
+		t.Fatalf("install failed: %+v", *installed)
+	}
+	mm, cmd = step(t, mm, key("x")) // remove it
+	mm = drain(t, mm, cmd)
+	if len(*installed) != 0 {
+		t.Fatal("remove hook not called")
+	}
+	mm, _ = step(t, mm, key("l")) // logout
+	if *signedIn {
+		t.Fatal("logout hook not called")
+	}
+	if !strings.Contains(view(mm), "browsing as guest") {
+		t.Error("logout not reflected in header")
 	}
 }

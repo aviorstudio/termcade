@@ -2,25 +2,33 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strings"
 
 	"github.com/aviorstudio/termcade/internal/manifest"
 	"github.com/aviorstudio/termcade/internal/plugin"
+	"github.com/aviorstudio/termcade/internal/registry"
 )
 
 const usage = `termcade — an arcade in your terminal
 
 usage:
-  termcade                     play
-  termcade add <src>           add a game from a .tcade file or URL
+  termcade                     play (marketplace included — press m)
+  termcade add <game>          add a game: author/slug from the marketplace,
+                               or a .tcade file or URL (login required)
   termcade remove <id>         remove an added game (id is author/slug)
   termcade list                list builtin and added games
+
+  termcade signup [email]      create a marketplace account
+  termcade login [email]       sign in (adding games requires it)
+  termcade logout              sign out
 
   termcade dev new <id> [dir]  start your own game (id is author/slug)
   termcade dev build [dir]     build a game directory into a .tcade package
@@ -43,6 +51,12 @@ func runCommand(args []string) bool {
 		err = cmdRemove(args[1:])
 	case "list":
 		err = cmdList()
+	case "login":
+		err = cmdLogin(args[1:])
+	case "signup":
+		err = cmdSignup(args[1:])
+	case "logout":
+		err = cmdLogout()
 	case "dev":
 		switch {
 		case len(args) >= 2 && args[1] == "build":
@@ -52,6 +66,8 @@ func runCommand(args []string) bool {
 		default:
 			err = fmt.Errorf("unknown dev subcommand; try: termcade dev new <author/slug> · termcade dev build [dir]")
 		}
+	case "version", "-v", "--version":
+		fmt.Println("termcade", version)
 	case "help", "-h", "--help":
 		fmt.Print(usage)
 	default:
@@ -65,14 +81,26 @@ func runCommand(args []string) bool {
 	return true
 }
 
+// gameIDRe matches a marketplace id, e.g. "aviorstudio/brickough".
+var gameIDRe = regexp.MustCompile(`^[a-z0-9][a-z0-9-]*/[a-z0-9][a-z0-9-]*$`)
+
 func cmdAdd(args []string) error {
 	if len(args) != 1 {
-		return fmt.Errorf("usage: termcade add <file-or-url>")
+		return fmt.Errorf("usage: termcade add <author/slug | file | url>")
 	}
 	src := args[0]
 
+	session, err := requireSession()
+	if err != nil {
+		return err
+	}
+
+	// Marketplace id → fetch through the registry and sync the library.
+	if _, statErr := os.Stat(src); gameIDRe.MatchString(src) && statErr != nil {
+		return addFromRegistry(session, src)
+	}
+
 	var raw []byte
-	var err error
 	if strings.Contains(src, "://") {
 		if !strings.HasPrefix(src, "https://") {
 			return fmt.Errorf("refusing to download over %s; games install code — use https",
@@ -85,28 +113,68 @@ func cmdAdd(args []string) error {
 	if err != nil {
 		return err
 	}
+	return installPackage(raw)
+}
 
-	pkg, err := manifest.ReadPackage(raw)
+func addFromRegistry(session *registry.Session, id string) error {
+	author, slug, _ := strings.Cut(id, "/")
+	client := registry.New(registry.URL(session), session.Token)
+
+	path, err := client.Download(author, slug)
+	if errors.Is(err, registry.ErrLoginRequired) {
+		return fmt.Errorf("your session has expired — run `termcade login`")
+	}
 	if err != nil {
 		return err
 	}
+	defer os.Remove(path)
+
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		return err
+	}
+	if err := installPackage(raw); err != nil {
+		return err
+	}
+	// Library sync is best-effort: the game is already installed locally.
+	if err := client.LibraryAdd(author, slug); err != nil {
+		fmt.Fprintf(os.Stderr, "warning: could not add %s to your library: %v\n", id, err)
+	}
+	return nil
+}
+
+// installPackageBytes validates and installs a .tcade without printing, so
+// the TUI can call it too: manifest parses, ABI is speakable, the wasm
+// compiles and exports the termcade ABI — then an atomic extract into the
+// games directory.
+func installPackageBytes(raw []byte) (*manifest.Package, string, error) {
+	pkg, err := manifest.ReadPackage(raw)
+	if err != nil {
+		return nil, "", err
+	}
 	if !pkg.Manifest.CompatibleABI() {
-		return fmt.Errorf("%s needs ABI v%d; this termcade speaks v%d",
+		return nil, "", fmt.Errorf("%s needs ABI v%d; this termcade speaks v%d",
 			pkg.Manifest.Game.ID, pkg.Manifest.Requirements.ABI, 1)
 	}
-	// Compile before installing: a module that doesn't build or lacks the
-	// termcade exports never reaches the games directory.
 	rt := plugin.NewRuntime(context.Background())
 	defer rt.Close()
 	if _, err := rt.Compile(pkg.Manifest.Game.ID, pkg.Wasm); err != nil {
-		return err
+		return nil, "", err
 	}
 
 	gamesDir, err := plugin.GamesDir()
 	if err != nil {
-		return err
+		return nil, "", err
 	}
 	dest, err := pkg.Install(gamesDir)
+	if err != nil {
+		return nil, "", err
+	}
+	return pkg, dest, nil
+}
+
+func installPackage(raw []byte) error {
+	pkg, dest, err := installPackageBytes(raw)
 	if err != nil {
 		return err
 	}
@@ -132,12 +200,9 @@ func download(url string) ([]byte, error) {
 	return io.ReadAll(io.LimitReader(resp.Body, 128<<20))
 }
 
-func cmdRemove(args []string) error {
-	if len(args) != 1 {
-		return fmt.Errorf("usage: termcade remove <author/slug>")
-	}
-	author, slug, ok := strings.Cut(args[0], "/")
-	if !ok || author == "" || slug == "" ||
+// removeLocal deletes an installed game's directory. Silent, TUI-safe.
+func removeLocal(author, slug string) error {
+	if author == "" || slug == "" ||
 		strings.ContainsAny(author, `\.`) || strings.ContainsAny(slug, `\.`) {
 		return fmt.Errorf("id must look like author/slug")
 	}
@@ -147,12 +212,41 @@ func cmdRemove(args []string) error {
 	}
 	dir := filepath.Join(gamesDir, author, slug)
 	if _, err := os.Stat(filepath.Join(dir, manifest.FileName)); err != nil {
-		return fmt.Errorf("%s is not in your arcade", args[0])
+		return fmt.Errorf("%s/%s is not in your arcade", author, slug)
 	}
-	if err := os.RemoveAll(dir); err != nil {
+	return os.RemoveAll(dir)
+}
+
+// syncLibraryRemove best-effort mirrors a removal to the signed-in library.
+func syncLibraryRemove(author, slug string) error {
+	session, err := registry.LoadSession()
+	if err != nil || session == nil {
+		return nil // purely local when signed out
+	}
+	client := registry.New(registry.URL(session), session.Token)
+	err = client.LibraryRemove(author, slug)
+	if err == nil || errors.Is(err, registry.ErrLoginRequired) ||
+		strings.Contains(err.Error(), "not in your library") {
+		return nil
+	}
+	return err
+}
+
+func cmdRemove(args []string) error {
+	if len(args) != 1 {
+		return fmt.Errorf("usage: termcade remove <author/slug>")
+	}
+	author, slug, ok := strings.Cut(args[0], "/")
+	if !ok {
+		return fmt.Errorf("id must look like author/slug")
+	}
+	if err := removeLocal(author, slug); err != nil {
 		return err
 	}
 	fmt.Printf("removed %s\n", args[0])
+	if err := syncLibraryRemove(author, slug); err != nil {
+		fmt.Fprintf(os.Stderr, "warning: could not update your library: %v\n", err)
+	}
 	return nil
 }
 

@@ -108,7 +108,7 @@ const goModTmpl = `module example.com/%s/%s
 
 go 1.26.2
 
-require github.com/aviorstudio/termcade/sdk v0.1.0
+require github.com/aviorstudio/termcade/sdk v0.0.1
 
 // Developing against a local termcade checkout? Point the sdk there:
 // replace github.com/aviorstudio/termcade/sdk => /path/to/termcade/sdk
