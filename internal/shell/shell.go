@@ -32,6 +32,7 @@ const (
 	screenCrashed
 	screenMarket
 	screenAuth
+	screenLibrary
 )
 
 type tickMsg struct {
@@ -58,6 +59,7 @@ type Model struct {
 	mp       *Marketplace
 	market   marketState
 	auth     authState
+	libIdx   int
 	termW    int
 	termH    int
 	tickGen  int
@@ -206,6 +208,8 @@ func (m Model) updateKey(key string) (tea.Model, tea.Cmd) {
 		return m.quitToMenu(), nil // any key dismisses the wreckage
 	case screenMarket:
 		return m.updateMarketKey(key)
+	case screenLibrary:
+		return m.updateLibraryKey(key)
 	}
 	return m, nil
 }
@@ -267,12 +271,13 @@ func (m Model) startGame(idx int) (tea.Model, tea.Cmd) {
 	if mm, crashed := m.checkCrash(); crashed {
 		return mm, nil
 	}
+	m.scores.Touch(m.game.Info().ID) // feeds the index's recently-played list
 	m.newHigh = false
 	m.screen = screenPlaying
 	m.tickGen++
 	m.resetClock()
 	m.redraw()
-	return m, m.tick()
+	return m, tea.Batch(m.tick(), saveScores(m.scores))
 }
 
 func (m Model) resumeGame() (tea.Model, tea.Cmd) {
@@ -334,6 +339,8 @@ func (m Model) View() tea.View {
 		block = m.viewMarket()
 	case screenAuth:
 		block = m.viewAuth()
+	case screenLibrary:
+		block = m.viewLibrary()
 	default:
 		block = m.viewGame()
 	}

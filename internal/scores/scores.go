@@ -12,8 +12,9 @@ import (
 )
 
 type Entry struct {
-	HighScore int       `json:"high_score"`
-	UpdatedAt time.Time `json:"updated_at"`
+	HighScore  int       `json:"high_score"`
+	UpdatedAt  time.Time `json:"updated_at"`
+	LastPlayed time.Time `json:"last_played,omitzero"`
 }
 
 // version 2: game keys are namespaced "author/slug". Version-1 files predate
@@ -83,6 +84,22 @@ func (s *Store) High(gameID string) int {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.data.Games[gameID].HighScore
+}
+
+// Touch records that a game was just played. In-memory; call Save to persist.
+func (s *Store) Touch(gameID string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	e := s.data.Games[gameID]
+	e.LastPlayed = time.Now().UTC()
+	s.data.Games[gameID] = e
+}
+
+// LastPlayed reports when a game was last started, zero if never.
+func (s *Store) LastPlayed(gameID string) time.Time {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.data.Games[gameID].LastPlayed
 }
 
 // Submit records sc if it beats the stored high; returns true on a new high.

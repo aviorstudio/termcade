@@ -140,8 +140,11 @@ func (m Model) updateMarketMsg(msg tea.Msg) (Model, tea.Cmd, bool) {
 			return m, nil, true
 		}
 		m.games = m.mp.Reload()
-		if m.menuIdx >= len(m.games) {
+		if m.menuIdx >= m.indexRows(m.recentGames()) {
 			m.menuIdx = 0
+		}
+		if m.libIdx >= len(m.games) {
+			m.libIdx = 0
 		}
 		m.market.notice = msg.verb + " " + msg.id
 		m.notice = msg.verb + " " + msg.id
