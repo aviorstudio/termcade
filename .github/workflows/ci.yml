@@ -1,0 +1,37 @@
+name: CI
+
+# Every push and pull request: test, then build, on one runner.
+#
+# Nothing is published, so a green CI means one thing — this commit is good.
+# The steps are .github/actions/*, the same ones Release runs; one definition
+# of each, and it is the one guarding a release.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache-dependency-path: go.sum
+
+      - name: Test
+        uses: ./.github/actions/test
+
+      - name: Build
+        uses: ./.github/actions/build

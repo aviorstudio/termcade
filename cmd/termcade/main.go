@@ -26,6 +26,10 @@ func builtins() []engine.Registration {
 	}
 }
 
+// version is stamped by the release build (-X main.version=…); "dev" means a
+// from-source build.
+var version = "dev"
+
 func main() {
 	if runCommand(os.Args[1:]) {
 		return
@@ -46,7 +50,7 @@ func main() {
 		fmt.Fprintln(os.Stderr, "termcade: installed games unavailable:", err)
 	}
 
-	p := tea.NewProgram(shell.New(games, st, shape))
+	p := tea.NewProgram(shell.New(games, st, shape, newMarketplace(rt, shape)))
 	if _, err := p.Run(); err != nil {
 		fmt.Fprintln(os.Stderr, "termcade:", err)
 		os.Exit(1)
