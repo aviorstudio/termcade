@@ -14,8 +14,12 @@ import "github.com/aviorstudio/termcade/sdk"
 // instead of crashes.
 type Registration struct {
 	Info sdk.Info
-	New  func() (sdk.Game, error)
-	Err  error
+	// New instantiates the game for a run. The cell shape is a launch-time
+	// choice (the player can retoggle between runs), and wasm guests size
+	// their pixel buffers from it, so it must reach instantiation rather
+	// than being captured at discovery.
+	New func(shape sdk.CellShape) (sdk.Game, error)
+	Err error
 	// Installed marks a game loaded from the games directory rather than
 	// compiled into the arcade.
 	Installed bool

@@ -260,7 +260,7 @@ func cmdList() error {
 	rt := plugin.NewRuntime(context.Background())
 	defer rt.Close()
 
-	for _, g := range discoverGames(rt, pixelShape()) {
+	for _, g := range discoverGames(rt) {
 		if g.Err != nil {
 			fmt.Printf("%-24s %-28s broken: %v\n", g.Info.Title, g.Info.ID, g.Err)
 			continue

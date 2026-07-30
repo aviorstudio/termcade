@@ -27,7 +27,7 @@ func benchCanvas(sh CellShape, busy bool) *Canvas {
 }
 
 func BenchmarkRender(b *testing.B) {
-	for _, sh := range []CellShape{HalfBlock, Quadrant, Sextant} {
+	for _, sh := range []CellShape{HalfBlock, Quadrant, Sextant, ASCII} {
 		for _, busy := range []bool{false, true} {
 			name := sh.Name
 			if busy {

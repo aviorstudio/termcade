@@ -51,10 +51,16 @@ requirements change.
 | `quad` (default) | 2×2 | Unicode 1.0 block elements; renders anywhere. |
 | `sextant` | 2×3 | Sharpest, near-square pixels. Needs Unicode 13 (Symbols for Legacy Computing) or you get tofu. |
 | `half` | 1×2 | The original look, for fonts that struggle with the rest. |
+| `ascii` | 3×3 | Pure ASCII art: a density ramp plus line characters. No block glyphs at all, so it works in any font (and any 1980s sensibility). |
 
 ```sh
 TERMCADE_PIXELS=sextant go run .
 ```
+
+In the arcade, `p` on the index or library cycles the pixel style and
+persists it to `~/.config/termcade/settings.json`; `TERMCADE_PIXELS`
+overrides the saved choice for a run. Games never change for any of this —
+the renderer owns the look.
 
 ### Input latency
 
@@ -82,6 +88,7 @@ the auto-repeat heuristic.
 | l (index) | library — every game you have |
 | m (index/library) | marketplace |
 | r (index/library) | remove the selected added game |
+| p (index/library) | cycle pixel style (incl. ASCII art) |
 | q | quit (from menu) |
 
 High scores persist to `~/.config/termcade/scores.json`.

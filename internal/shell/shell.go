@@ -11,6 +11,7 @@ import (
 
 	"github.com/aviorstudio/termcade/internal/engine"
 	"github.com/aviorstudio/termcade/internal/scores"
+	"github.com/aviorstudio/termcade/internal/settings"
 	"github.com/aviorstudio/termcade/sdk"
 )
 
@@ -195,6 +196,25 @@ func saveScores(st *scores.Store) tea.Cmd {
 	return func() tea.Msg { st.Save(); return nil }
 }
 
+// shapeCycle is the order the p key walks through pixel styles.
+var shapeCycle = []sdk.CellShape{sdk.Quadrant, sdk.Sextant, sdk.HalfBlock, sdk.ASCII}
+
+// cyclePixels advances the pixel style for the next game start and persists
+// the choice. TERMCADE_PIXELS still overrides it at startup.
+func (m Model) cyclePixels() (tea.Model, tea.Cmd) {
+	next := shapeCycle[0]
+	for i, sh := range shapeCycle {
+		if sh.Name == m.shape.Name {
+			next = shapeCycle[(i+1)%len(shapeCycle)]
+			break
+		}
+	}
+	m.shape = next
+	m.notice = "pixels: " + m.shape.Name
+	st := settings.Settings{Pixels: m.shape.Name}
+	return m, func() tea.Msg { st.Save(); return nil }
+}
+
 // checkCrash moves a crashed game to the crash screen; reports whether it did.
 func (m Model) checkCrash() (Model, bool) {
 	if m.game == nil || m.game.Err() == nil {
@@ -292,12 +312,15 @@ func (m Model) startGame(idx int) (tea.Model, tea.Cmd) {
 	}
 	m.gameIdx = idx
 	m.notice = ""
-	if m.game == nil || m.game.Info().ID != m.games[idx].Info.ID || m.game.Err() != nil {
+	// A wasm guest sizes its pixel buffer from the shape at init, so a shape
+	// change needs a fresh instance, not just a fresh canvas.
+	sameShape := m.canvas != nil && m.canvas.Shape().Name == m.shape.Name
+	if m.game == nil || m.game.Info().ID != m.games[idx].Info.ID || m.game.Err() != nil || !sameShape {
 		if m.game != nil {
 			m.game.Close()
 			m.game = nil
 		}
-		g, err := m.games[idx].New()
+		g, err := m.games[idx].New(m.shape)
 		if err != nil {
 			m.notice = m.games[idx].Info.Title + ": " + err.Error()
 			m.screen = screenMenu

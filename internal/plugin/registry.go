@@ -15,8 +15,8 @@ import (
 // builtins first (minus any shadowed by an install), then installed games by
 // title, then broken installs, dimmed and unlaunchable. Nothing found on disk
 // can prevent the arcade from starting.
-func Games(rt *Runtime, gamesDir string, builtins []engine.Registration, shape sdk.CellShape) []engine.Registration {
-	installed, broken := discover(rt, gamesDir, shape)
+func Games(rt *Runtime, gamesDir string, builtins []engine.Registration) []engine.Registration {
+	installed, broken := discover(rt, gamesDir)
 
 	shadowed := map[string]bool{}
 	for _, reg := range installed {
@@ -37,13 +37,13 @@ func Games(rt *Runtime, gamesDir string, builtins []engine.Registration, shape s
 
 // discover walks <gamesDir>/<author>/<slug>/termcade.toml. Every failure mode
 // yields a broken entry rather than an error: the menu is the error surface.
-func discover(rt *Runtime, gamesDir string, shape sdk.CellShape) (ok, broken []engine.Registration) {
+func discover(rt *Runtime, gamesDir string) (ok, broken []engine.Registration) {
 	matches, _ := filepath.Glob(filepath.Join(gamesDir, "*", "*", manifest.FileName))
 	for _, mPath := range matches {
 		dir := filepath.Dir(mPath)
 		name := filepath.Base(filepath.Dir(dir)) + "/" + filepath.Base(dir)
 
-		reg, err := load(rt, dir, shape)
+		reg, err := load(rt, dir)
 		if err != nil {
 			broken = append(broken, engine.Registration{
 				Info:      sdk.Info{ID: name, Title: name},
@@ -58,7 +58,7 @@ func discover(rt *Runtime, gamesDir string, shape sdk.CellShape) (ok, broken []e
 	return ok, broken
 }
 
-func load(rt *Runtime, dir string, shape sdk.CellShape) (engine.Registration, error) {
+func load(rt *Runtime, dir string) (engine.Registration, error) {
 	raw, err := os.ReadFile(filepath.Join(dir, manifest.FileName))
 	if err != nil {
 		return engine.Registration{}, err
@@ -79,7 +79,7 @@ func load(rt *Runtime, dir string, shape sdk.CellShape) (engine.Registration, er
 	info := m.Info()
 	return engine.Registration{
 		Info: info,
-		New: func() (sdk.Game, error) {
+		New: func(shape sdk.CellShape) (sdk.Game, error) {
 			wasm, err := os.ReadFile(wasmPath)
 			if err != nil {
 				return nil, err

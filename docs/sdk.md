@@ -107,8 +107,9 @@ termcade                    # your game is on the menu
   both are deterministic. There is no variable dt.
 - **Drawing** — `Draw` receives a cleared canvas of `Info.PixelW × PixelH`
   logical units (height must be even). Draw in logical units; the canvas
-  rasterizes to whatever pixel density the player's terminal uses. The
-  terminal footprint is `PixelW` columns × `PixelH/2` rows.
+  rasterizes to whatever pixel style the player chose — block glyphs at
+  several densities, or full ASCII art. Games never change for any of them.
+  The terminal footprint is `PixelW` columns × `PixelH/2` rows.
 - **Input** — the vocabulary is `KeyLeft/Right/Up/Down`, `KeyA` (space/z),
   `KeyB` (x), `KeyStart` (enter). Esc belongs to the arcade (pause). Terminals
   that report key releases call `HandleKeyUp`; for the rest, use

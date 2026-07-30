@@ -11,6 +11,7 @@ import (
 	"github.com/aviorstudio/termcade/internal/engine"
 	"github.com/aviorstudio/termcade/internal/plugin"
 	"github.com/aviorstudio/termcade/internal/scores"
+	"github.com/aviorstudio/termcade/internal/settings"
 	"github.com/aviorstudio/termcade/internal/shell"
 	"github.com/aviorstudio/termcade/internal/starter"
 	"github.com/aviorstudio/termcade/sdk"
@@ -19,7 +20,7 @@ import (
 // discoverGames seeds the starter pack on first run, then loads every
 // installed game. The arcade compiles no games in — everything on the menu
 // is a .tcade running in the sandbox, bundled or added.
-func discoverGames(rt *plugin.Runtime, shape sdk.CellShape) []engine.Registration {
+func discoverGames(rt *plugin.Runtime) []engine.Registration {
 	dir, err := plugin.GamesDir()
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "termcade: games directory unavailable:", err)
@@ -28,7 +29,7 @@ func discoverGames(rt *plugin.Runtime, shape sdk.CellShape) []engine.Registratio
 	if err := starter.Seed(dir); err != nil {
 		fmt.Fprintln(os.Stderr, "termcade: starter pack:", err)
 	}
-	return plugin.Games(rt, dir, nil, shape)
+	return plugin.Games(rt, dir, nil)
 }
 
 // version is stamped by the release build (-X main.version=…). When it
@@ -59,9 +60,9 @@ func main() {
 
 	rt := plugin.NewRuntime(context.Background())
 	defer rt.Close()
-	games := discoverGames(rt, shape)
+	games := discoverGames(rt)
 
-	p := tea.NewProgram(shell.New(games, st, shape, newMarketplace(rt, shape)))
+	p := tea.NewProgram(shell.New(games, st, shape, newMarketplace(rt)))
 	if _, err := p.Run(); err != nil {
 		fmt.Fprintln(os.Stderr, "termcade:", err)
 		os.Exit(1)
@@ -72,14 +73,17 @@ func main() {
 // render in any font; sextants are sharper but need Unicode 13 coverage, so
 // opting in is left to whoever knows their terminal.
 func pixelShape() sdk.CellShape {
-	name, ok := os.LookupEnv("TERMCADE_PIXELS")
-	if !ok {
-		return sdk.Quadrant
+	if name, ok := os.LookupEnv("TERMCADE_PIXELS"); ok {
+		if shape, ok := sdk.LookupShape(name); ok {
+			return shape
+		}
+		fmt.Fprintf(os.Stderr, "termcade: unknown TERMCADE_PIXELS %q; ignoring\n", name)
 	}
-	shape, ok := sdk.LookupShape(name)
-	if !ok {
-		fmt.Fprintf(os.Stderr, "termcade: unknown TERMCADE_PIXELS %q; using quad\n", name)
-		return sdk.Quadrant
+	// The env is a per-run override; the arcade's p toggle persists here.
+	if st, err := settings.Load(); err == nil {
+		if shape, ok := sdk.LookupShape(st.Pixels); ok {
+			return shape
+		}
 	}
-	return shape
+	return sdk.Quadrant
 }

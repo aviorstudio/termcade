@@ -9,6 +9,7 @@ import (
 
 	"github.com/aviorstudio/termcade/internal/engine"
 	"github.com/aviorstudio/termcade/internal/scores"
+	"github.com/aviorstudio/termcade/internal/settings"
 	"github.com/aviorstudio/termcade/sdk"
 )
 
@@ -54,7 +55,7 @@ func newTestShell(t *testing.T, g *fakeGame) Model {
 	t.Helper()
 	return newTestShellReg(t, engine.Registration{
 		Info: g.Info(),
-		New:  func() (sdk.Game, error) { return g, nil },
+		New:  func(sdk.CellShape) (sdk.Game, error) { return g, nil },
 	})
 }
 
@@ -174,7 +175,7 @@ func TestGamePanicShowsCrashScreen(t *testing.T) {
 func TestRegistrationErrorStaysOnMenu(t *testing.T) {
 	reg := engine.Registration{
 		Info: sdk.Info{ID: "broken/game", Title: "BROKEN", PixelW: 8, PixelH: 8},
-		New:  func() (sdk.Game, error) { return nil, errBroken },
+		New:  func(sdk.CellShape) (sdk.Game, error) { return nil, errBroken },
 	}
 	m := newTestShellReg(t, reg)
 	m, _ = step(t, m, key("l"))
@@ -347,7 +348,7 @@ func fakeMarket(signedIn *bool, installed *[]engine.Registration) *Marketplace {
 		Install: func(id string) error {
 			*installed = append(*installed, engine.Registration{
 				Info:      sdk.Info{ID: id, Title: "BLASTER", PixelW: 8, PixelH: 8},
-				New:       func() (sdk.Game, error) { return &fakeGame{}, nil },
+				New:       func(sdk.CellShape) (sdk.Game, error) { return &fakeGame{}, nil },
 				Installed: true,
 			})
 			return nil
@@ -369,7 +370,7 @@ func fakeMarket(signedIn *bool, installed *[]engine.Registration) *Marketplace {
 			g := &fakeGame{}
 			base := []engine.Registration{{
 				Info: g.Info(),
-				New:  func() (sdk.Game, error) { return g, nil },
+				New:  func(sdk.CellShape) (sdk.Game, error) { return g, nil },
 			}}
 			return append(base, *installed...)
 		},
@@ -605,5 +606,80 @@ func TestIndexShowsRecentlyPlayed(t *testing.T) {
 	m, cmd := step(t, m, key("enter"))
 	if m.screen != screenPlaying || cmd == nil {
 		t.Fatalf("recent row did not start the game: screen=%v", m.screen)
+	}
+}
+
+func TestPixelToggle(t *testing.T) {
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	st, err := scores.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	g := &fakeGame{}
+	var shapes []string
+	reg := engine.Registration{
+		Info: g.Info(),
+		New: func(sh sdk.CellShape) (sdk.Game, error) {
+			shapes = append(shapes, sh.Name)
+			return g, nil
+		},
+	}
+	m := New([]engine.Registration{reg}, st, sdk.Quadrant, nil)
+	mm, _ := m.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
+	m = mm.(Model)
+
+	if !strings.Contains(view(m), "p pixels") {
+		t.Fatal("index hint does not mention the pixel toggle")
+	}
+
+	// p cycles quad -> sextant and persists asynchronously.
+	m, cmd := step(t, m, key("p"))
+	if !strings.Contains(view(m), "pixels: sextant") {
+		t.Fatalf("toggle notice missing:\n%s", view(m))
+	}
+	if cmd == nil {
+		t.Fatal("toggle issued no save command")
+	}
+	cmd()
+	if s, _ := settings.Load(); s.Pixels != "sextant" {
+		t.Fatalf("persisted pixels = %q, want sextant", s.Pixels)
+	}
+
+	// Two more: half, then ascii.
+	m, _ = step(t, m, key("p"))
+	m, cmd = step(t, m, key("p"))
+	cmd()
+	if s, _ := settings.Load(); s.Pixels != "ascii" {
+		t.Fatalf("persisted pixels = %q, want ascii", s.Pixels)
+	}
+
+	// Launching sees the current shape.
+	m, _ = step(t, m, key("l"))
+	if !strings.Contains(view(m), "p pixels") {
+		t.Error("library hint does not mention the pixel toggle")
+	}
+	m, _ = step(t, m, key("enter"))
+	if len(shapes) != 1 || shapes[0] != "ascii" {
+		t.Fatalf("New saw shapes %v, want [ascii]", shapes)
+	}
+	if m.canvas.Shape().Name != "ascii" {
+		t.Fatalf("canvas shape = %q", m.canvas.Shape().Name)
+	}
+
+	// Quit out, toggle onward (ascii wraps to quad), relaunch the SAME game:
+	// the instance and canvas must be rebuilt for the new shape.
+	m, _ = step(t, m, key("esc"))
+	m, _ = step(t, m, key("j"))
+	m, _ = step(t, m, key("j"))
+	m, _ = step(t, m, key("enter")) // Quit to Menu
+	m, cmd = step(t, m, key("p"))
+	cmd()
+	m, _ = step(t, m, key("l"))
+	m, _ = step(t, m, key("enter"))
+	if len(shapes) != 2 || shapes[1] != "quad" {
+		t.Fatalf("relaunch after toggle saw shapes %v, want [ascii quad]", shapes)
+	}
+	if m.canvas.Shape().Name != "quad" {
+		t.Fatalf("canvas not rebuilt: shape = %q", m.canvas.Shape().Name)
 	}
 }
