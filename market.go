@@ -9,13 +9,12 @@ import (
 	"github.com/aviorstudio/termcade/internal/plugin"
 	"github.com/aviorstudio/termcade/internal/registry"
 	"github.com/aviorstudio/termcade/internal/shell"
-	"github.com/aviorstudio/termcade/sdk"
 )
 
 // newMarketplace wires the arcade's marketplace screens to the registry and
 // the local install machinery. Every hook is TUI-safe: no printing, errors
 // returned for the shell to display.
-func newMarketplace(rt *plugin.Runtime, shape sdk.CellShape) *shell.Marketplace {
+func newMarketplace(rt *plugin.Runtime) *shell.Marketplace {
 	anonClient := func() *registry.Client {
 		session, _ := registry.LoadSession()
 		token := ""
@@ -26,7 +25,7 @@ func newMarketplace(rt *plugin.Runtime, shape sdk.CellShape) *shell.Marketplace 
 	}
 
 	reload := func() []engine.Registration {
-		return discoverGames(rt, shape)
+		return discoverGames(rt)
 	}
 
 	return &shell.Marketplace{

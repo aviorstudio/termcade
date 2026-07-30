@@ -29,6 +29,8 @@ func (m Model) updateLibraryKey(key string) (tea.Model, tea.Cmd) {
 		}
 	case "r":
 		return m.removeGame(m.libIdx)
+	case "p":
+		return m.cyclePixels()
 	case "enter":
 		if len(m.games) > 0 {
 			return m.startGame(m.libIdx)
@@ -71,9 +73,9 @@ func (m Model) viewLibrary() string {
 		b.WriteString("\n" + dimStyle.Render(sanitize(m.notice)))
 	}
 	b.WriteString("\n")
-	hint := "↑/↓ select · enter play · esc back"
+	hint := "↑/↓ select · enter play · p pixels · esc back"
 	if m.mp != nil {
-		hint = "↑/↓ select · enter play · r remove · m marketplace · esc back"
+		hint = "↑/↓ select · enter play · r remove · m marketplace · p pixels · esc back"
 	}
 	b.WriteString(dimStyle.Render(hint))
 	return b.String()

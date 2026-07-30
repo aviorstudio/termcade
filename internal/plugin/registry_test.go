@@ -58,9 +58,9 @@ func TestRegistryMergesAndFlagsBroken(t *testing.T) {
 	defer rt.Close()
 	builtin := engine.Registration{
 		Info: sdk.Info{ID: "aviorstudio/tetris", Title: "TETRIS", PixelW: 32, PixelH: 40},
-		New:  func() (sdk.Game, error) { return nil, nil },
+		New:  func(sdk.CellShape) (sdk.Game, error) { return nil, nil },
 	}
-	games := Games(rt, gamesDir, []engine.Registration{builtin}, sdk.Quadrant)
+	games := Games(rt, gamesDir, []engine.Registration{builtin})
 
 	if len(games) != 5 {
 		t.Fatalf("got %d entries, want 5: %+v", len(games), games)
@@ -88,9 +88,9 @@ func TestRegistryShadowsBuiltin(t *testing.T) {
 	defer rt.Close()
 	builtin := engine.Registration{
 		Info: sdk.Info{ID: "aviorstudio/tetris", Title: "TETRIS", PixelW: 32, PixelH: 40},
-		New:  func() (sdk.Game, error) { return nil, nil },
+		New:  func(sdk.CellShape) (sdk.Game, error) { return nil, nil },
 	}
-	games := Games(rt, gamesDir, []engine.Registration{builtin}, sdk.Quadrant)
+	games := Games(rt, gamesDir, []engine.Registration{builtin})
 
 	if len(games) != 1 {
 		t.Fatalf("got %d entries, want 1 (shadowed): %+v", len(games), games)
@@ -103,7 +103,7 @@ func TestRegistryShadowsBuiltin(t *testing.T) {
 func TestRegistryEmptyDirIsFine(t *testing.T) {
 	rt := NewRuntime(context.Background())
 	defer rt.Close()
-	games := Games(rt, filepath.Join(t.TempDir(), "does-not-exist"), nil, sdk.Quadrant)
+	games := Games(rt, filepath.Join(t.TempDir(), "does-not-exist"), nil)
 	if len(games) != 0 {
 		t.Errorf("got %d entries from nothing", len(games))
 	}

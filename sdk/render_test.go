@@ -124,3 +124,94 @@ func itoa(v uint8) string {
 	}
 	return string(buf[i:])
 }
+
+// The ASCII table deliberately reuses glyphs (the ramp) and has no '█', so it
+// is tested apart from TestShapeGlyphTables.
+func TestASCIIGlyphTable(t *testing.T) {
+	g := ASCII.Glyphs
+	if len(g) != 512 {
+		t.Fatalf("table has %d entries, want 512", len(g))
+	}
+	for m, r := range g {
+		if r < 0x20 || r > 0x7e {
+			t.Errorf("mask %09b maps to non-printable-ASCII %q", m, r)
+		}
+	}
+	if g[0] != ' ' || g[511] != '@' {
+		t.Errorf("extremes: empty=%q full=%q", g[0], g[511])
+	}
+	if !ASCII.Ink {
+		t.Error("ASCII must be an ink shape")
+	}
+
+	for c := range 3 {
+		if got := g[0b001001001<<c]; got != '|' {
+			t.Errorf("full column %d = %q, want |", c, got)
+		}
+	}
+	for r, want := range []rune{'"', '-', '_'} {
+		if got := g[0b111<<(3*r)]; got != want {
+			t.Errorf("full row %d = %q, want %q", r, got, want)
+		}
+	}
+	if got := g[0b100010001]; got != '\\' {
+		t.Errorf("main diagonal = %q, want \\", got)
+	}
+	if got := g[0b001010100]; got != '/' {
+		t.Errorf("anti-diagonal = %q, want /", got)
+	}
+	for mask, want := range map[int]rune{1 << 0: '`', 1 << 2: '\'', 1 << 6: ',', 1 << 8: '.'} {
+		if got := g[mask]; got != want {
+			t.Errorf("corner %09b = %q, want %q", mask, got, want)
+		}
+	}
+	// Non-stroke patterns fall back to the density ramp.
+	if got := g[0b000000011]; got != ':' {
+		t.Errorf("two-pixel blob = %q, want ramp ':'", got)
+	}
+}
+
+func TestRenderASCII(t *testing.T) {
+	// One logical column is one cell wide and, at 3x3, a 2-unit column is one
+	// cell: NewCanvas(1, 2, ...) is a single 3x3-pixel cell.
+	c := NewCanvas(1, 2, Black, ASCII)
+
+	// Empty cell renders as a space.
+	if out := c.Render(); !strings.Contains(out, " ") || strings.ContainsRune(out, '@') {
+		t.Errorf("empty canvas rendered %q", out)
+	}
+
+	// A pixel diagonal reads as a backslash in the drawn color.
+	c.SetPixel(0, 0, White)
+	c.SetPixel(1, 1, White)
+	c.SetPixel(2, 2, White)
+	if out := c.Render(); !strings.Contains(out, esc(White, Black)+"\\") {
+		t.Errorf("diagonal rendered %q", out)
+	}
+
+	// A uniformly filled cell is the densest character over the playfield
+	// background — the Ink behavior.
+	for y := range 3 {
+		for x := range 3 {
+			c.SetPixel(x, y, Red)
+		}
+	}
+	if out := c.Render(); !strings.Contains(out, esc(Red, Black)+"@") {
+		t.Errorf("filled cell rendered %q", out)
+	}
+}
+
+func TestRenderASCIIShapes(t *testing.T) {
+	// A block plus a diagonal on a wider canvas: interiors densify, the
+	// stroke stays line art.
+	c := NewCanvas(8, 8, Black, ASCII)
+	c.FillRect(0, 0, 4, 4, Red)
+	c.LineF(4, 8, 8, 4, White)
+	out := c.Render()
+	if !strings.Contains(out, "@") {
+		t.Errorf("filled block produced no dense glyphs:\n%s", out)
+	}
+	if !strings.Contains(out, "/") {
+		t.Errorf("rising line produced no '/':\n%s", out)
+	}
+}

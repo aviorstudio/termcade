@@ -5,8 +5,9 @@ import (
 	"strings"
 )
 
-// maxCellPixels bounds the per-cell scratch buffer across all shapes.
-const maxCellPixels = 6
+// maxCellPixels bounds the per-cell scratch buffer across all shapes;
+// ASCII's 3x3 is the largest.
+const maxCellPixels = 9
 
 // Render converts the canvas to terminal output, one line per cell row.
 //
@@ -78,7 +79,13 @@ func (c *Canvas) cell(cx, cy int, buf []Color) (fg, bg Color, mask int) {
 	}
 	if !crowded {
 		if !haveSecond {
-			return a, a, 0 // uniform
+			// Uniform. Block glyphs tile the cell, so plain background color
+			// suffices; ink glyphs don't, so a filled cell must actually draw
+			// its densest character over the playfield background.
+			if sh.Ink && a != c.bg {
+				return a, c.bg, len(sh.Glyphs) - 1
+			}
+			return a, a, 0
 		}
 		return c.orient(buf[:n], a, second)
 	}

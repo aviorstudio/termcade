@@ -76,6 +76,8 @@ func (m Model) updateMenuKey(key string) (tea.Model, tea.Cmd) {
 		if m.menuIdx < len(recent) {
 			return m.removeGame(recent[m.menuIdx])
 		}
+	case "p":
+		return m.cyclePixels()
 	case "enter":
 		switch {
 		case m.menuIdx < len(recent):
@@ -158,9 +160,9 @@ func (m Model) viewMenu() string {
 		b.WriteString("\n" + dimStyle.Render(sanitize(m.notice)))
 	}
 	b.WriteString("\n")
-	hint := "↑/↓ select · enter open · l library · q quit"
+	hint := "↑/↓ select · enter open · l library · p pixels · q quit"
 	if m.mp != nil {
-		hint = "↑/↓ select · enter open · l library · m marketplace · q quit"
+		hint = "↑/↓ select · enter open · l library · m marketplace · p pixels · q quit"
 	}
 	b.WriteString(dimStyle.Render(hint))
 	return b.String()
