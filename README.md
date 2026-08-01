@@ -105,7 +105,7 @@ The same works from the command line:
 ```sh
 termcade signup                          # create an account (or: termcade login)
 termcade add aviorstudio/brickough       # add straight from the marketplace
-termcade add aviorstudio/brickough@1.0.0 # or pin a version
+termcade add aviorstudio/brickough@0.0.1 # or pin a version
 termcade add <file-or-url>.tcade         # or from a package you have
 termcade list                            # what's here
 termcade remove author/slug              # take one off (updates your library too)
