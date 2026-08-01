@@ -69,17 +69,28 @@ func loadGame(t *testing.T, pkg string, info sdk.Info) sdk.Game {
 	return g
 }
 
-var tetrisInfo = sdk.Info{ID: "aviorstudio/tetris", Title: "TETRIS", PixelW: 32, PixelH: 40}
+// The probe guest under internal/plugin/testdata/probe. These tests drove
+// Tetris through the sandbox until the games moved to their own repository;
+// a purpose-built guest is the better fixture anyway, because it makes the
+// host's behaviour observable without anyone having to know a game's rules.
+const probePkg = "internal/plugin/testdata/probe"
 
-// litPixels counts colored pixels in the bottom rows of the well. The ghost
-// piece (DimGray) and the separator line sit there from the first frame;
-// only a LOCKED piece paints real colors.
+// Kept in step with the probe's own constants.
+const probeGameOverTick = 30
+
+var probeInfo = sdk.Info{ID: "test/probe", Title: "PROBE", PixelW: 16, PixelH: 8}
+
+func newCanvas() *sdk.Canvas {
+	return sdk.NewCanvas(probeInfo.PixelW, probeInfo.PixelH, sdk.Black, sdk.Quadrant)
+}
+
+// litPixels counts everything the guest painted.
 func litPixels(c *sdk.Canvas) int {
-	_, fh := c.PixelSize()
+	fw, fh := c.PixelSize()
 	n := 0
-	for fy := fh - 4; fy < fh; fy++ {
-		for fx := range 40 { // the well is 20 logical units wide = 40 px
-			if px := c.AtPixel(fx, fy); px != sdk.Black && px != sdk.DimGray {
+	for fy := range fh {
+		for fx := range fw {
+			if c.AtPixel(fx, fy) != sdk.Black {
 				n++
 			}
 		}
@@ -87,81 +98,94 @@ func litPixels(c *sdk.Canvas) int {
 	return n
 }
 
-// hardDrop presses the drop button and runs enough ticks to clear the
-// debounce, locking one piece per call.
-func hardDrop(g sdk.Game) sdk.Status {
-	g.HandleKey(sdk.KeyA)
-	for range 13 { // dropCool is 12 ticks
-		if s := g.Update(); s == sdk.StatusGameOver {
-			return s
-		}
-	}
-	return sdk.StatusRunning
-}
-
-func TestE2ETetrisPlays(t *testing.T) {
-	g := loadGame(t, "games/tetris/cmd/wasm", tetrisInfo)
-	c := sdk.NewCanvas(tetrisInfo.PixelW, tetrisInfo.PixelH, sdk.Black, sdk.Quadrant)
+// TestE2EGuestRoundTrip drives every export the ABI defines and checks that
+// what the guest computed is what the host reads back: ticks it counted,
+// pixels it drew into its own linear memory, a score moved by a keypress, and
+// a HUD marshalled across as JSON.
+func TestE2EGuestRoundTrip(t *testing.T) {
+	g := loadGame(t, probePkg, probeInfo)
+	c := newCanvas()
 
 	g.Reset()
 	g.Draw(c)
 	if lit := litPixels(c); lit != 0 {
-		t.Fatalf("well floor occupied at start: %d pixels", lit)
+		t.Fatalf("canvas not empty after Reset: %d pixels", lit)
 	}
 
-	// One hard drop locks a piece on the floor.
-	if hardDrop(g) != sdk.StatusRunning {
-		t.Fatal("game ended on the first drop")
+	// The probe paints one pixel per elapsed tick, so the pixel buffer is a
+	// direct readout of guest state crossing the boundary.
+	const ticks = 5
+	for range ticks {
+		if s := g.Update(); s != sdk.StatusRunning {
+			t.Fatalf("ended early at tick %d", ticks)
+		}
 	}
 	g.Draw(c)
-	if lit := litPixels(c); lit == 0 {
-		t.Error("hard-dropped piece left no pixels on the well floor")
+	if lit := litPixels(c); lit != ticks {
+		t.Errorf("read %d pixels back from the guest, want %d", lit, ticks)
 	}
-	if g.Score() <= 0 {
-		t.Errorf("score = %d after a hard drop (drops score distance)", g.Score())
+
+	if g.Score() != 0 {
+		t.Errorf("score = %d before any keypress", g.Score())
+	}
+	g.HandleKey(sdk.KeyA)
+	if g.Score() != 10 {
+		t.Errorf("score = %d after KeyA, want 10 — the keypress did not reach the guest", g.Score())
+	}
+	g.Draw(c)
+	if lit := litPixels(c); lit != ticks+1 {
+		t.Errorf("held key not drawn: %d pixels, want %d", lit, ticks+1)
+	}
+
+	// Key release is reported separately, and terminals that cannot send it
+	// simply never call this — so the host must carry it when they can.
+	g.HandleKeyUp(sdk.KeyA)
+	g.Draw(c)
+	if lit := litPixels(c); lit != ticks {
+		t.Errorf("key release did not reach the guest: %d pixels, want %d", lit, ticks)
 	}
 
 	h := g.HUD()
-	found := false
-	for _, f := range h.Fields {
-		if f.Label == "SCORE" {
-			found = true
-		}
-	}
-	if !found {
-		t.Errorf("HUD missing SCORE field: %+v", h)
+	if len(h.Fields) != 1 || h.Fields[0].Label != "SCORE" || h.Fields[0].Value != "10" {
+		t.Errorf("HUD did not survive the crossing: %+v", h)
 	}
 }
 
-func TestE2ETetrisGameOver(t *testing.T) {
-	g := loadGame(t, "games/tetris/cmd/wasm", tetrisInfo)
+func TestE2EGuestGameOver(t *testing.T) {
+	g := loadGame(t, probePkg, probeInfo)
 	g.Reset()
 
-	// Dropping forever tops out the well in bounded time.
-	over := false
-	for range 500 {
-		if hardDrop(g) == sdk.StatusGameOver {
-			over = true
-			break
+	for i := 1; i < probeGameOverTick; i++ {
+		if g.Update() != sdk.StatusRunning {
+			t.Fatalf("reported game over at tick %d, want %d", i, probeGameOverTick)
 		}
 	}
-	if !over {
-		t.Fatal("game never ended")
-	}
-	if g.Score() <= 0 {
-		t.Errorf("score = %d at game over", g.Score())
+	if g.Update() != sdk.StatusGameOver {
+		t.Fatalf("still running at tick %d", probeGameOverTick)
 	}
 }
 
+// TestE2EReplayAfterReset covers the arcade's Restart: an instance that has
+// already ended has to come back, in the same wasm instance, without trapping.
 func TestE2EReplayAfterReset(t *testing.T) {
-	g := loadGame(t, "games/tetris/cmd/wasm", tetrisInfo)
+	g := loadGame(t, probePkg, probeInfo)
 	g.Reset()
-	for range 10 {
+	for range probeGameOverTick {
 		g.Update()
 	}
+
 	g.Reset()
-	c := sdk.NewCanvas(tetrisInfo.PixelW, tetrisInfo.PixelH, sdk.Black, sdk.Quadrant)
-	g.Draw(c) // must not trap after a mid-run reset
+	c := newCanvas()
+	g.Draw(c)
+	if lit := litPixels(c); lit != 0 {
+		t.Fatalf("Reset left %d pixels behind", lit)
+	}
+	if g.Score() != 0 {
+		t.Errorf("Reset left score at %d", g.Score())
+	}
+	if g.Update() != sdk.StatusRunning {
+		t.Error("still reporting game over after Reset")
+	}
 }
 
 func TestWatchdogKillsHungGuest(t *testing.T) {
@@ -191,13 +215,15 @@ func TestCompileRejectsGarbage(t *testing.T) {
 }
 
 func TestLoadRejectsWrongPlayfield(t *testing.T) {
-	raw, err := os.ReadFile(buildWasm(t, "games/tetris/cmd/wasm"))
+	raw, err := os.ReadFile(buildWasm(t, probePkg))
 	if err != nil {
 		t.Fatal(err)
 	}
 	rt := NewRuntime(context.Background())
 	defer rt.Close()
-	lying := sdk.Info{ID: "aviorstudio/tetris", Title: "X", PixelW: 10, PixelH: 10}
+	// The manifest is the authority on identity, so a manifest that disagrees
+	// with the module it ships is refused rather than believed.
+	lying := sdk.Info{ID: "test/probe", Title: "X", PixelW: 10, PixelH: 10}
 	if _, err := rt.Load("lying", raw, lying, sdk.Quadrant); err == nil {
 		t.Fatal("manifest/playfield mismatch accepted")
 	}
