@@ -19,8 +19,11 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"strconv"
 	"strings"
 	"time"
+
+	"github.com/aviorstudio/termcade/sdk"
 )
 
 // DefaultURL is the development default. Set TERMCADE_REGISTRY (or log in
@@ -158,13 +161,19 @@ func (c *Client) Game(author, slug string) (Game, error) {
 
 // Resolve asks the registry where a version lives. An empty version means
 // the newest one.
+//
+// The ABI this arcade speaks goes with the request, so the registry can pick
+// the newest release this binary can actually run rather than the newest one
+// that exists. Without it a game that has moved on to a later ABI would
+// resolve, download, and only then be refused by the host.
 func (c *Client) Resolve(author, slug, version string) (Resolved, error) {
-	path := "/v1/games/" + author + "/" + slug + "/resolve"
+	q := url.Values{}
+	q.Set("abi", strconv.Itoa(sdk.ABIVersion))
 	if version != "" {
-		path += "?version=" + url.QueryEscape(version)
+		q.Set("version", version)
 	}
 	var out Resolved
-	return out, c.do(http.MethodGet, path, nil, &out)
+	return out, c.do(http.MethodGet, "/v1/games/"+author+"/"+slug+"/resolve?"+q.Encode(), nil, &out)
 }
 
 // Download resolves a game and fetches its package to a temp file. The caller
