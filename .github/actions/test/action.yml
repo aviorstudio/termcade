@@ -41,3 +41,18 @@ runs:
     - name: Go tests
       shell: bash
       run: go test -race -count=1 -timeout 10m ./... ./sdk/...
+
+    # Everything above runs inside go.work, where ./sdk satisfies the arcade's
+    # dependency on it — so the version in go.mod is never consulted and can
+    # be wrong without anything noticing. That is exactly how v0.0.3 shipped
+    # using sdk.ASCII while requiring an sdk release that predated it: green
+    # locally, green here, and broken for every `go run …@latest` on earth.
+    #
+    # GOWORK=off resolves the dependency the way a stranger's toolchain will.
+    # It is the only check in this file that tests the module rather than the
+    # code, and it belongs in the shared action so a release cannot skip it.
+    - name: Build as a consumer would
+      shell: bash
+      run: |
+        GOWORK=off go build ./...
+        GOWORK=off go vet ./...
