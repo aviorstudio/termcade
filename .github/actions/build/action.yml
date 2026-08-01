@@ -1,7 +1,7 @@
 name: Build
 description: >
   Everything a release ships: the arcade binary for every platform, archived,
-  the starter pack's .tcade packages, and checksums over all of it.
+  with checksums.
 
   Shared by CI and Release so a pull request builds exactly what a release
   builds, with no switches between them. The only difference is that one of
@@ -45,27 +45,9 @@ runs:
           fi
         done
 
-    # The starter pack, shipped as marketplace packages too.
-    #
-    # COPIED, not rebuilt. internal/starter/packs/*.tcade are committed (see
-    # the note in internal/starter/starter.go), and copying them is what makes
-    # the package the marketplace serves byte-identical to the one embedded in
-    # the binary. A `go generate` here would rebuild the wasm and could hand
-    # the registry a different digest for the same game and version.
-    #
-    # This is how asteroid and tetris reach the registry at all: they have no
-    # repository of their own, so their packages are assets on this repo's
-    # releases, and `termcade publish` points the marketplace at them.
-    - name: Starter packages
-      shell: bash
-      run: |
-        set -euo pipefail
-        cp internal/starter/packs/*.tcade dist/
-        ls -l dist/*.tcade
-
     - name: Checksums
       shell: bash
       run: |
         set -euo pipefail
-        (cd dist && sha256sum *.tar.gz *.zip *.tcade > checksums.txt)
+        (cd dist && sha256sum *.tar.gz *.zip > checksums.txt)
         cat dist/checksums.txt
