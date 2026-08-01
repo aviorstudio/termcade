@@ -104,16 +104,23 @@ screens, so you never need the website.
 The same works from the command line:
 
 ```sh
-termcade signup                    # create an account (or: termcade login)
-termcade add aviorstudio/brickough # add straight from the marketplace
-termcade add <file-or-url>.tcade   # or from a package you have
-termcade list                      # what's here
-termcade remove author/slug        # take one off (updates your library too)
+termcade signup                          # create an account (or: termcade login)
+termcade add aviorstudio/brickough       # add straight from the marketplace
+termcade add aviorstudio/brickough@1.0.0 # or pin a version
+termcade add <file-or-url>.tcade         # or from a package you have
+termcade list                            # what's here
+termcade remove author/slug              # take one off (updates your library too)
 ```
 
 The registry defaults to local dev (`http://127.0.0.1:8080`, the termcade-be
 stack); point `TERMCADE_REGISTRY` elsewhere until termcade.com is live.
-Downloads are verified against the registry's sha256 before install.
+
+**The registry stores no packages.** It is an index: a game's releases live on
+its GitHub releases, and the registry records where each one is and what it
+hashed to when the registry fetched and validated it. `termcade add` asks the
+registry where a version lives, downloads it from GitHub, and refuses to
+install anything whose sha256 does not match what the registry recorded — so a
+release asset swapped after publishing fails rather than reaching a player.
 
 Installed games are WebAssembly modules that run sandboxed (no filesystem, no
 network) under [wazero](https://wazero.io). A broken install shows up dimmed
@@ -124,6 +131,19 @@ on the menu with the reason; it can never take the arcade down.
 The arcade you play with is also the whole dev kit — `termcade dev new
 you/mygame` scaffolds a playable game, `termcade dev build` packages it, and
 `termcade add` puts it on your own menu.
+
+To put it on everyone else's, attach the `.tcade` to a GitHub release and tell
+the marketplace where it is:
+
+```sh
+termcade publish https://github.com/you/mygame v1.0.0 mygame.tcade
+```
+
+The registry fetches that asset once, validates it against the same manifest
+rules the arcade enforces, reads the game's identity and version out of the
+manifest inside it, and records its digest. Nothing you pass here asserts what
+the package is — only where it is. The first publish under an author name
+claims that namespace.
 
 A game is a Go package implementing `sdk.Game` — see
 [docs/sdk.md](docs/sdk.md) for the author quickstart,

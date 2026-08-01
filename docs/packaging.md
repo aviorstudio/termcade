@@ -69,10 +69,44 @@ At startup the arcade scans that tree. A directory that fails validation
 shows up on the menu dimmed with the reason, is unlaunchable, and can never
 prevent the arcade from starting.
 
-## Marketplace notes
+## Publishing
 
-The manifest is designed to double as a registry index entry: `id` is the
-package name, `version` its release, and a future termcade.com needs nothing
-a `.tcade` doesn't already carry. Publishing is not built yet; when it is,
-`termcade add author/slug` will resolve through the registry the same way
-`add <url>` works today.
+The registry stores no packages. It is an index: a `.tcade` lives on one of
+your GitHub releases, and publishing tells the registry where to find it.
+
+```sh
+termcade dev build
+gh release create v1.0.0 build/mygame.tcade    # or upload it however you like
+termcade publish https://github.com/you/mygame v1.0.0 mygame.tcade
+```
+
+Notice what the publish command does *not* say: not the game's id, not its
+version, not its playfield. The registry fetches that asset once and reads all
+of it out of the manifest inside — using this same package, so a game the
+marketplace accepts is by construction a game the arcade will load. You say
+where the bytes are; the bytes say what they are.
+
+Three consequences worth knowing:
+
+- **`version` must be plain semver** (`1.2.3`, optionally `v`-prefixed). The
+  manifest itself only length-checks it, because the arcade never has to sort
+  versions. The registry does — pinning, "latest" and rollback all need an
+  order — so it is enforced at publish time rather than here.
+- **A version is published once.** Re-publishing `1.0.0` is a conflict, not an
+  overwrite.
+- **The first publish under an author name claims that namespace.** Nobody
+  else can publish `you/*` afterwards.
+
+## Installing from the marketplace
+
+```sh
+termcade add you/mygame          # newest release
+termcade add you/mygame@1.0.0    # pinned
+```
+
+`add` asks the registry where that version lives, downloads it straight from
+GitHub, and checks the sha256 against the digest the registry recorded when it
+fetched and validated the package. A mismatch aborts the install: a release
+asset can be deleted and re-uploaded under the same tag, so the digest is what
+ties what arrives to what was actually reviewed. Nothing installs unverified,
+and the registry token is never sent to GitHub.
