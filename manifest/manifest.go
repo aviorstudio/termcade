@@ -1,6 +1,13 @@
 // Package manifest defines the termcade.toml game manifest and the .tcade
 // package format (a zip of termcade.toml + game.wasm). The manifest — never
 // the wasm — is the authority on a game's identity.
+//
+// It is deliberately not internal. The arcade, the CLI and the registry all
+// have to agree on what a valid package is, and a validator that rejects
+// hostile input is the last thing that should exist twice — the registry
+// imports this one rather than growing its own. It stays out of sdk/ because
+// the sdk depends on nothing outside the standard library and this needs a
+// TOML parser, and because no game ever imports it.
 package manifest
 
 import (

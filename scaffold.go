@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/aviorstudio/termcade/internal/manifest"
+	"github.com/aviorstudio/termcade/manifest"
 )
 
 // cmdDevNew scaffolds a playable game project: a paddle-and-ball demo the

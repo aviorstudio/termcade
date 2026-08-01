@@ -19,7 +19,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/aviorstudio/termcade/internal/manifest"
+	"github.com/aviorstudio/termcade/manifest"
 )
 
 //go:generate sh -c "cd ../.. && go run . dev build games/asteroid && cp games/asteroid/build/asteroid.tcade internal/starter/packs/"
