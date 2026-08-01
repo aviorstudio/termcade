@@ -1,4 +1,4 @@
-// Package registry is the termcade.com client: marketplace catalog, package
+// Package registry is the termca.de client: marketplace catalog, package
 // resolution, account auth, and the user's library.
 //
 // The registry stores no packages. It is an index that answers "where does
@@ -26,8 +26,12 @@ import (
 	"github.com/aviorstudio/termcade/sdk"
 )
 
-// DefaultURL is the development default. Set TERMCADE_REGISTRY (or log in
-// against another registry) once termcade.com is live.
+// DefaultURL is the development default: the termcade-be stack on localhost.
+// It becomes https://api.termca.de when that is deployed and answering — and
+// not before, because this value is compiled into every released binary, so
+// pointing it at a host that is not up costs a release to undo. Until then,
+// TERMCADE_REGISTRY overrides it for anyone who wants to talk to something
+// else.
 const DefaultURL = "http://127.0.0.1:8080"
 
 // maxPackageSize matches the registry's publish-time ceiling.
@@ -152,11 +156,6 @@ func (c *Client) do(method, path string, body, out any) error {
 func (c *Client) Games() ([]Game, error) {
 	var games []Game
 	return games, c.do(http.MethodGet, "/v1/games", nil, &games)
-}
-
-func (c *Client) Game(author, slug string) (Game, error) {
-	var g Game
-	return g, c.do(http.MethodGet, "/v1/games/"+author+"/"+slug, nil, &g)
 }
 
 // Resolve asks the registry where a version lives. An empty version means
@@ -294,9 +293,4 @@ func (c *Client) LibraryAdd(author, slug string) error {
 
 func (c *Client) LibraryRemove(author, slug string) error {
 	return c.do(http.MethodDelete, "/v1/library/"+author+"/"+slug, nil, nil)
-}
-
-func (c *Client) Library() ([]Game, error) {
-	var games []Game
-	return games, c.do(http.MethodGet, "/v1/library", nil, &games)
 }
