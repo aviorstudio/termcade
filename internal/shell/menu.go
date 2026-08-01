@@ -99,9 +99,9 @@ func (m Model) openLibrary() (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-// removeGame removes m.games[idx]. Every game is an installed package now —
-// bundled starter games included — so anything healthy can be removed and
-// re-added from the marketplace later.
+// removeGame removes m.games[idx]. Every game on the menu is an installed
+// package, so anything healthy can be removed and re-added from the
+// marketplace later.
 func (m Model) removeGame(idx int) (tea.Model, tea.Cmd) {
 	if m.mp == nil || m.market.busy || idx >= len(m.games) {
 		return m, nil

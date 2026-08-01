@@ -96,8 +96,9 @@ High scores persist to `~/.config/termcade/scores.json`.
 The arcade opens on your recently played games, with the library (`l`) and
 marketplace (`m`) one keystroke away. Press `m` to browse and install — no
 account needed for either, because the packages are public GitHub release
-assets and there is nothing an account could gate. Sign in to publish, or to
-have your library follow you across machines; the arcade has its own
+assets and there is nothing an account could gate. Sign in to publish; your
+adds and removes are also mirrored to a library on your account, though
+nothing restores that onto a new machine yet. The arcade has its own
 sign-in/sign-up screens, so you never need the website.
 
 The same works from the command line:
@@ -112,7 +113,13 @@ termcade remove author/slug              # take one off (updates your library to
 ```
 
 The registry defaults to local dev (`http://127.0.0.1:8080`, the termcade-be
-stack); point `TERMCADE_REGISTRY` elsewhere until termcade.com is live.
+stack) and will point at `https://api.termca.de` once that is deployed.
+`TERMCADE_REGISTRY` overrides it either way — which is how you reach a local
+stack after the default moves:
+
+```sh
+TERMCADE_REGISTRY=http://127.0.0.1:8080 termcade add you/mygame
+```
 
 **The registry stores no packages.** It is an index: a game's releases live on
 its GitHub releases, and the registry records where each one is and what it

@@ -32,7 +32,7 @@ usage:
                                .tcade on one of your GitHub releases
 
   termcade signup [email]      create a marketplace account
-  termcade login [email]       sign in (publishing and library sync)
+  termcade login [email]       sign in (publishing and your account library)
   termcade logout              sign out
 
   termcade dev new <id> [dir]  start your own game (id is author/slug)
