@@ -21,13 +21,18 @@ const usage = `termcade — an arcade in your terminal
 
 usage:
   termcade                     play (marketplace included — press m)
-  termcade add <game>          add a game: author/slug from the marketplace,
-                               or a .tcade file or URL (login required)
+  termcade add <game>          add a game: author/slug from the marketplace
+                               (pin a version with @1.2.3), or a .tcade file
+                               or URL
   termcade remove <id>         remove an added game (id is author/slug)
   termcade list                list the games in your arcade
 
+  termcade publish <repo> <tag> [asset]
+                               publish a release: point the marketplace at a
+                               .tcade on one of your GitHub releases
+
   termcade signup [email]      create a marketplace account
-  termcade login [email]       sign in (non-demo packages and library sync)
+  termcade login [email]       sign in (publishing and library sync)
   termcade logout              sign out
 
   termcade dev new <id> [dir]  start your own game (id is author/slug)
@@ -57,6 +62,8 @@ func runCommand(args []string) bool {
 		err = cmdSignup(args[1:])
 	case "logout":
 		err = cmdLogout()
+	case "publish":
+		err = cmdPublish(args[1:])
 	case "dev":
 		switch {
 		case len(args) >= 2 && args[1] == "build":
@@ -95,12 +102,14 @@ func cmdAdd(args []string) error {
 		return err
 	}
 
-	// Marketplace id → fetch through the registry and sync the library.
-	if _, statErr := os.Stat(src); gameIDRe.MatchString(src) && statErr != nil {
-		return addFromRegistry(session, src)
+	// Marketplace id (optionally pinned, author/slug@1.2.3) → fetch through
+	// the registry and sync the library.
+	id, version, _ := strings.Cut(src, "@")
+	if _, statErr := os.Stat(src); gameIDRe.MatchString(id) && statErr != nil {
+		return addFromRegistry(session, id, version)
 	}
 	if session == nil {
-		return fmt.Errorf("adding non-demo packages requires an account — run `termcade login` (or `termcade signup`)")
+		return fmt.Errorf("adding a package from a file or url requires an account — run `termcade login` (or `termcade signup`)")
 	}
 
 	var raw []byte
@@ -119,7 +128,7 @@ func cmdAdd(args []string) error {
 	return installPackage(raw)
 }
 
-func addFromRegistry(session *registry.Session, id string) error {
+func addFromRegistry(session *registry.Session, id, version string) error {
 	author, slug, _ := strings.Cut(id, "/")
 	token := ""
 	if session != nil {
@@ -127,13 +136,14 @@ func addFromRegistry(session *registry.Session, id string) error {
 	}
 	client := registry.New(registry.URL(session), token)
 
-	path, err := client.Download(author, slug)
+	resolved, err := client.Resolve(author, slug, version)
 	if errors.Is(err, registry.ErrLoginRequired) {
-		if session == nil {
-			return fmt.Errorf("adding %s requires an account — run `termcade login`", id)
-		}
 		return fmt.Errorf("your session has expired — run `termcade login`")
 	}
+	if err != nil {
+		return err
+	}
+	path, err := client.Fetch(resolved, slug)
 	if err != nil {
 		return err
 	}
@@ -267,6 +277,54 @@ func cmdList() error {
 		}
 		fmt.Printf("%-24s %-28s installed\n", g.Info.Title, g.Info.ID)
 	}
+	return nil
+}
+
+// cmdPublish points the marketplace at a package on a GitHub release. The
+// registry fetches it, validates it against the same manifest rules the
+// arcade uses, and records its digest — so what is published is decided by
+// the package, not by anything asserted here.
+//
+// This is the signed-in path. Publishing from an author's own CI, with a
+// scoped key rather than a session, is a separate credential and is not
+// built yet.
+func cmdPublish(args []string) error {
+	if len(args) < 2 || len(args) > 3 {
+		return fmt.Errorf("usage: termcade publish <repo-url> <tag> [asset]")
+	}
+	session, err := registry.LoadSession()
+	if err != nil {
+		return err
+	}
+	if session == nil {
+		return fmt.Errorf("publishing requires an account — run `termcade login` (or `termcade signup`)")
+	}
+
+	repo, tag := args[0], args[1]
+	asset := ""
+	if len(args) == 3 {
+		asset = args[2]
+	} else {
+		// Default to what `dev build` names its output, read from the game
+		// directory we are standing in.
+		raw, err := os.ReadFile(manifest.FileName)
+		if err != nil {
+			return fmt.Errorf("no asset name given, and no %s here to infer one from", manifest.FileName)
+		}
+		m, err := manifest.Parse(raw)
+		if err != nil {
+			return err
+		}
+		asset = m.Slug() + ".tcade"
+	}
+
+	out, err := registry.New(registry.URL(session), session.Token).Publish(repo, tag, asset)
+	if err != nil {
+		return err
+	}
+	fmt.Printf("published %s %s\n", out.ID, out.Version)
+	fmt.Printf("  from   %s @ %s (%s)\n", out.Repo, out.Tag, out.Asset)
+	fmt.Printf("  sha256 %s\n", out.SHA256)
 	return nil
 }
 
