@@ -1,29 +1,27 @@
 # termcade
 
 A terminal arcade. Classic games rendered at sub-cell resolution with block
-pixels, built on [Bubble Tea](https://charm.land/bubbletea). The arcade
-compiles no games in — every game is a sandboxed WebAssembly package. It
-ships with a starter pack, and anyone can write more against the SDK and
-publish them for players to `termcade add`.
+pixels, built on [Bubble Tea](https://charm.land/bubbletea). Every game is a
+sandboxed WebAssembly package, and the arcade ships with none of them —
+anyone writes them against the SDK and publishes them for players to
+`termcade add`.
 
 ## Games
 
-Starter pack (bundled in the binary, seeded on first run, playable offline):
-
-- **ASTEROID** — Asteroids-style rock shooter. Inertial ship on a wrapping
-  field; big rocks split into faster small ones.
-- **TETRIS** — Falling-block stacker. Super Rotation System kicks, a 7-bag
-  randomizer, ghost piece, lock delay, and gravity that tightens by level.
-
-From the marketplace (press `m`, or the CLI):
-
-- **BRICKOUGH** — Breakout-style brick breaker. Steer the ball with paddle
-  english, clear the wall, survive the speed-up. Lives outside this repo as
-  a real third-party-shaped game, installed the way any marketplace game is:
+There are no bundled games. A fresh termcade is an empty cabinet and a
+marketplace; press `m` and install something:
 
 ```sh
-termcade add aviorstudio/brickough
+termcade add aviorstudio/asteroid    # Asteroids-style rock shooter
+termcade add aviorstudio/tetris      # falling-block stacker
+termcade add aviorstudio/brickough   # Breakout-style brick breaker
 ```
+
+Those three live in
+[termcade-games](https://github.com/aviorstudio/termcade-games), outside this
+repository, and reach players only through the registry. That is deliberate:
+a first-party game with a shortcut into the binary is a first-party game that
+never exercises the path everyone else has to use.
 
 ## Run
 
@@ -96,10 +94,11 @@ High scores persist to `~/.config/termcade/scores.json`.
 ## The marketplace
 
 The arcade opens on your recently played games, with the library (`l`) and
-marketplace (`m`) one keystroke away. Press `m` to browse the marketplace — no account needed to
-look or install the demo games. Sign in only if you want your library to
-follow your account across machines; the arcade has its own sign-in/sign-up
-screens, so you never need the website.
+marketplace (`m`) one keystroke away. Press `m` to browse and install — no
+account needed for either, because the packages are public GitHub release
+assets and there is nothing an account could gate. Sign in to publish, or to
+have your library follow you across machines; the arcade has its own
+sign-in/sign-up screens, so you never need the website.
 
 The same works from the command line:
 
@@ -152,11 +151,10 @@ and [docs/abi.md](docs/abi.md) for the frozen wasm ABI (for non-Go
 toolchains). `termcade dev build` turns a game directory into an installable
 package.
 
-The games under `games/` are worked examples — complete games depending
-only on the `sdk` module, each buildable into a `.tcade` via its `cmd/wasm`
-entrypoint. Brickough goes one further: it lives entirely outside this repo
-as its own module against the published sdk, and reaches the arcade only
-through the marketplace — the exact path a third-party game takes.
+[termcade-games](https://github.com/aviorstudio/termcade-games) is three
+worked examples — complete games depending only on the `sdk` module, each
+buildable into a `.tcade` via its `cmd/wasm` entrypoint, each published to
+the marketplace the way yours will be.
 
 ## Architecture
 
@@ -169,9 +167,6 @@ through the marketplace — the exact path a third-party game takes.
   any game panic to a crash screen instead of a dead arcade.
 - `internal/plugin` — the wazero host: sandboxed instantiation, per-call
   watchdog deadlines, install-dir discovery.
-- `internal/starter` — the bundled starter pack: committed `.tcade`
-  packages embedded in the binary, unpacked once into the games directory
-  (including when upgrading an existing installation).
 - `manifest/` — `termcade.toml` parsing/validation and the `.tcade` zip
   format. Public rather than internal: the registry validates uploads
   against this same package, so a game the marketplace accepts and a game
@@ -181,10 +176,6 @@ through the marketplace — the exact path a third-party game takes.
   overlays.
 - `internal/scores` — atomic JSON high-score persistence, namespaced by
   `author/slug`.
-- `games/*` — the bundled games' source: sdk-only packages with a
-  `cmd/wasm` entrypoint and a `termcade.toml`, exactly the shape a
-  third-party game has. Nothing here is compiled into the arcade; these
-  build into the starter pack (`go generate ./internal/starter`).
 
 ## Development
 

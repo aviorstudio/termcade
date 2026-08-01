@@ -30,8 +30,7 @@ units (the arcade allocates the canvas from these numbers).
 `game.id` namespaces everything: the install directory, the high-score table,
 menu identity. Two games named `tetris` by different authors never collide.
 Installing a game whose id you already have replaces it — that is the whole
-update story, bundled starter games included: the marketplace copy simply
-takes the local one's place.
+update story: the new copy simply takes the local one's place.
 
 ## .tcade packages
 

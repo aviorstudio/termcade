@@ -125,6 +125,6 @@ termcade                    # your game is on the menu
 ## Local iteration without wasm
 
 Nothing about the SDK requires wasm — a game is plain Go. For fast iteration,
-write ordinary Go tests against your game (see `games/` in the termcade
+write ordinary Go tests against your game (see the termcade-games
 repo for worked examples: complete sdk-only games with test suites, each
 buildable as a `.tcade`).
