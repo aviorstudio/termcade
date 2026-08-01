@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	"github.com/aviorstudio/termcade/internal/engine"
-	"github.com/aviorstudio/termcade/internal/manifest"
+	"github.com/aviorstudio/termcade/manifest"
 	"github.com/aviorstudio/termcade/sdk"
 )
 

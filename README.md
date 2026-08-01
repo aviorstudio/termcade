@@ -152,8 +152,10 @@ through the marketplace — the exact path a third-party game takes.
 - `internal/starter` — the bundled starter pack: committed `.tcade`
   packages embedded in the binary, unpacked once into the games directory
   (including when upgrading an existing installation).
-- `internal/manifest` — `termcade.toml` parsing/validation and the `.tcade`
-  zip format.
+- `manifest/` — `termcade.toml` parsing/validation and the `.tcade` zip
+  format. Public rather than internal: the registry validates uploads
+  against this same package, so a game the marketplace accepts and a game
+  the arcade will run are decided by one piece of code.
 - `internal/shell` — the Bubble Tea arcade frame: menu, 60 TPS tick loop that
   steps off the measured clock rather than drifting, pause/game-over/crash
   overlays.

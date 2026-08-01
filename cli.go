@@ -12,9 +12,9 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/aviorstudio/termcade/internal/manifest"
 	"github.com/aviorstudio/termcade/internal/plugin"
 	"github.com/aviorstudio/termcade/internal/registry"
+	"github.com/aviorstudio/termcade/manifest"
 )
 
 const usage = `termcade — an arcade in your terminal

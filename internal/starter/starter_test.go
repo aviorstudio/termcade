@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/aviorstudio/termcade/internal/manifest"
+	"github.com/aviorstudio/termcade/manifest"
 )
 
 func TestSeedMigratesExistingGamesDirectoryOnlyOnce(t *testing.T) {
