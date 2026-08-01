@@ -11,7 +11,7 @@ require (
 )
 
 require (
-	github.com/aviorstudio/termcade/sdk v0.0.1
+	github.com/aviorstudio/termcade/sdk v0.0.2
 	github.com/charmbracelet/colorprofile v0.4.3 // indirect
 	github.com/charmbracelet/ultraviolet v0.0.0-20260703014108-f5a850f9c2b7 // indirect
 	github.com/charmbracelet/x/ansi v0.11.7 // indirect
@@ -28,3 +28,10 @@ require (
 	golang.org/x/sync v0.21.0 // indirect
 	golang.org/x/sys v0.47.0 // indirect
 )
+
+// v0.0.3 does not build. It uses sdk.ASCII while requiring sdk v0.0.1, which
+// predates it — a mismatch go.work hid from every local build and from CI,
+// and that only surfaces when the module is consumed from outside this
+// workspace. Nothing can be published to fix a released version, so it is
+// withdrawn instead.
+retract v0.0.3
