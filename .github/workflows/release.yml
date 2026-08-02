@@ -31,12 +31,15 @@ concurrency: release-${{ github.repository }}
 jobs:
   release:
     runs-on: ubuntu-latest
+    # Bounded, so a step that hangs fails here rather than sitting until the
+    # runner's own timeout hours later.
+    timeout-minutes: 20
     permissions:
       contents: write # create the tag and the release
       id-token: write # OIDC identity for build provenance
       attestations: write # record the provenance attestation
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           fetch-depth: 0
 
@@ -72,7 +75,7 @@ jobs:
           echo "version=$version" >> "$GITHUB_OUTPUT"
           echo "tag=$tag" >> "$GITHUB_OUTPUT"
 
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
         with:
           go-version-file: go.mod
           cache-dependency-path: go.sum
@@ -81,11 +84,13 @@ jobs:
       # against this exact commit is not redundant: CI passing on this SHA
       # earlier is a claim about that run, and a release is the artefact
       # people actually execute.
-      - name: Test
-        uses: ./.github/actions/test
-
+      # Build before Test, as CI does and as every other workflow in the
+      # organisation does.
       - name: Build
         uses: ./.github/actions/build
+
+      - name: Test
+        uses: ./.github/actions/test
         with:
           version: ${{ steps.release.outputs.version }}
 
@@ -93,7 +98,7 @@ jobs:
       # player's full permissions — worth tying the archives to this workflow,
       # this repository and this commit.
       - name: Attest build provenance
-        uses: actions/attest-build-provenance@v2
+        uses: actions/attest-build-provenance@e8998f949152b193b063cb0ec769d69d929409be # v2
         with:
           subject-path: |
             dist/*.tar.gz
