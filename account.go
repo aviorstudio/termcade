@@ -194,3 +194,109 @@ func cmdKeys(args []string) error {
 	}
 	return fmt.Errorf("unknown keys subcommand; try: list · new <name> <username> · revoke <id>")
 }
+
+// cmdOrg manages studios: a handle more than one person publishes under.
+//
+// An org exists so `aviorstudio/tetris` can outlive any one account, and so a
+// second person can release it. Membership is enough to publish; admin governs
+// the studio itself.
+func cmdOrg(args []string) error {
+	session, err := registry.LoadSession()
+	if err != nil {
+		return err
+	}
+	if session == nil {
+		return fmt.Errorf("managing studios requires an account — run `termcade login`")
+	}
+	client := registry.New(registry.URL(session), session.Token)
+
+	switch {
+	case len(args) == 0 || args[0] == "list":
+		me, err := client.Me()
+		if err != nil {
+			return err
+		}
+		if me.Username != "" {
+			fmt.Printf("%-24s you\n", me.Username)
+		}
+		for _, org := range me.Orgs {
+			role := "member"
+			if org.Admin {
+				role = "admin"
+			}
+			fmt.Printf("%-24s studio (%s)\n", org.Username, role)
+		}
+		if len(me.Orgs) == 0 {
+			fmt.Println("\nno studios — create one with `termcade org new <username>`")
+		}
+		return nil
+
+	case args[0] == "new":
+		if len(args) < 2 || len(args) > 3 {
+			return fmt.Errorf("usage: termcade org new <username> [bio]")
+		}
+		bio := ""
+		if len(args) == 3 {
+			bio = args[2]
+		}
+		org, err := client.CreateOrg(args[1], bio, "")
+		if err != nil {
+			return err
+		}
+		fmt.Printf("created %s — you are its admin\n", org.Username)
+		fmt.Printf("publish as %s/<game>, and add people with `termcade org add %s <email>`\n",
+			org.Username, org.Username)
+		return nil
+
+	case args[0] == "show":
+		if len(args) != 2 {
+			return fmt.Errorf("usage: termcade org show <username>")
+		}
+		org, err := client.Org(args[1])
+		if err != nil {
+			return err
+		}
+		fmt.Printf("%s\n", org.Username)
+		if org.Bio != "" {
+			fmt.Printf("  %s\n", org.Bio)
+		}
+		if len(org.Games) == 0 {
+			fmt.Println("  no published games")
+		}
+		for _, game := range org.Games {
+			fmt.Printf("  %s\n", game)
+		}
+		return nil
+
+	case args[0] == "add":
+		// One call for adding and for promoting: they are the same intent at
+		// different times, and a separate `promote` would only work in one
+		// order.
+		if len(args) < 3 || len(args) > 4 {
+			return fmt.Errorf("usage: termcade org add <org> <email> [admin]")
+		}
+		admin := len(args) == 4 && args[3] == "admin"
+		if err := client.AddMember(args[1], args[2], admin); err != nil {
+			return err
+		}
+		role := "a member"
+		if admin {
+			role = "an admin"
+		}
+		fmt.Printf("%s is now %s of %s\n", args[2], role, args[1])
+		return nil
+
+	case args[0] == "remove":
+		if len(args) != 3 {
+			return fmt.Errorf("usage: termcade org remove <org> <email>")
+		}
+		if err := client.RemoveMember(args[1], args[2]); err != nil {
+			return err
+		}
+		fmt.Printf("removed %s from %s\n", args[2], args[1])
+		return nil
+	}
+	return fmt.Errorf(
+		"unknown org subcommand; try: list · new <username> [bio] · show <username> · " +
+			"add <org> <email> [admin] · remove <org> <email>")
+}
