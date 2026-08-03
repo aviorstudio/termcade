@@ -122,6 +122,8 @@ The same works from the command line:
 termcade signup                          # create an account + claim a handle
 termcade add aviorstudio/brickough       # add straight from the marketplace
 termcade add <file-or-url>.tcade         # or from a package you have (also signed in)
+termcade sync                            # bring your library to this machine
+termcade keys new ci <username>          # a key for a release workflow
 termcade list                            # what's here
 termcade remove author/slug              # take one off (updates your library too)
 ```
