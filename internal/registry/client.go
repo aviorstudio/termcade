@@ -434,3 +434,60 @@ func (c *Client) RemoveMember(org, email string) error {
 	return c.do(http.MethodDelete,
 		"/v1/orgs/"+url.PathEscape(org)+"/members/"+url.PathEscape(email), nil, nil)
 }
+
+// HandleOwner is what a handle resolves to. Public, because a namespace
+// nobody can inspect is a namespace people collide with.
+type HandleOwner struct {
+	Name  string `json:"name"`
+	IsOrg bool   `json:"is_org"`
+}
+
+// HandleTaken reports whether a handle is claimed, and by what kind of owner.
+// A free handle is a 404 from the registry, which is an answer rather than a
+// failure — so it comes back as ok=false, not an error.
+func (c *Client) HandleTaken(name string) (owner HandleOwner, taken bool, err error) {
+	err = c.do(http.MethodGet, "/v1/usernames/"+url.PathEscape(name), nil, &owner)
+	if err != nil {
+		if strings.Contains(err.Error(), "is available") {
+			return HandleOwner{}, false, nil
+		}
+		return HandleOwner{}, false, err
+	}
+	return owner, true, nil
+}
+
+// SetUsername claims a handle, or renames the one this account holds.
+//
+// The registry refuses a rename once the handle has published games: packages
+// assert their own id and players install to <author>/<slug>, so a rename
+// would leave shipped packages claiming a name their author no longer holds.
+func (c *Client) SetUsername(name string) (HandleOwner, error) {
+	var out HandleOwner
+	body := map[string]string{"username": name}
+	return out, c.do(http.MethodPatch, "/v1/me/username", body, &out)
+}
+
+// DeleteAccount removes the caller's account. Refused while its handle holds
+// published games, or while it is the only admin of a studio.
+func (c *Client) DeleteAccount() error {
+	return c.do(http.MethodDelete, "/v1/me", nil, nil)
+}
+
+// UpdateOrg edits a studio. Nil leaves a field alone, which is not the same as
+// the empty string — clearing a bio is a real edit.
+func (c *Client) UpdateOrg(name string, bio, link *string) (Org, error) {
+	var out Org
+	body := map[string]any{}
+	if bio != nil {
+		body["bio"] = *bio
+	}
+	if link != nil {
+		body["link"] = *link
+	}
+	return out, c.do(http.MethodPatch, "/v1/orgs/"+url.PathEscape(name), body, &out)
+}
+
+// DeleteOrg dissolves a studio. Refused while its handle holds published games.
+func (c *Client) DeleteOrg(name string) error {
+	return c.do(http.MethodDelete, "/v1/orgs/"+url.PathEscape(name), nil, nil)
+}

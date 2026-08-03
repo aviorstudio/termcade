@@ -286,6 +286,33 @@ func cmdOrg(args []string) error {
 		fmt.Printf("%s is now %s of %s\n", args[2], role, args[1])
 		return nil
 
+	case args[0] == "edit":
+		if len(args) != 3 {
+			return fmt.Errorf("usage: termcade org edit <org> <bio>")
+		}
+		bio := args[2]
+		org, err := client.UpdateOrg(args[1], &bio, nil)
+		if err != nil {
+			return err
+		}
+		fmt.Printf("updated %s\n", org.Username)
+		return nil
+
+	case args[0] == "delete":
+		// Confirmed by typing the name. Dissolving a studio releases its
+		// handle for anyone to claim, and cannot be undone.
+		if len(args) != 3 || args[2] != args[1] {
+			return fmt.Errorf(
+				"this dissolves the studio and releases its handle for anyone to claim.\n"+
+					"it cannot be undone. to confirm:\n\n  termcade org delete %s %s",
+				valueOr(args, 1), valueOr(args, 1))
+		}
+		if err := client.DeleteOrg(args[1]); err != nil {
+			return err
+		}
+		fmt.Printf("dissolved %s\n", args[1])
+		return nil
+
 	case args[0] == "remove":
 		if len(args) != 3 {
 			return fmt.Errorf("usage: termcade org remove <org> <email>")
@@ -298,5 +325,129 @@ func cmdOrg(args []string) error {
 	}
 	return fmt.Errorf(
 		"unknown org subcommand; try: list · new <username> [bio] · show <username> · " +
-			"add <org> <email> [admin] · remove <org> <email>")
+			"edit <org> <bio> · add <org> <email> [admin] · remove <org> <email> · " +
+			"delete <org> <org>")
+}
+
+// valueOr keeps a usage message readable when the argument it wants to quote
+// was the thing that was missing.
+func valueOr(args []string, i int) string {
+	if i < len(args) {
+		return args[i]
+	}
+	return "<org>"
+}
+
+// cmdWhoami reports the account, its handle, and every studio it can publish
+// under. The first thing to reach for when a publish is refused and the reason
+// is "you are not a member of" something.
+func cmdWhoami() error {
+	session, err := registry.LoadSession()
+	if err != nil {
+		return err
+	}
+	if session == nil {
+		return fmt.Errorf("not signed in — run `termcade login`")
+	}
+	me, err := registry.New(registry.URL(session), session.Token).Me()
+	if err != nil {
+		return err
+	}
+
+	fmt.Printf("%s (%s)\n", me.Email, session.Registry)
+	if me.Username == "" {
+		// A real state: an account whose signup lost a race for its handle.
+		fmt.Println("\nno username yet — claim one with `termcade username <name>`")
+	} else {
+		fmt.Printf("\npublish as:\n  %-24s you\n", me.Username)
+	}
+	for _, org := range me.Orgs {
+		role := "member"
+		if org.Admin {
+			role = "admin"
+		}
+		fmt.Printf("  %-24s studio (%s)\n", org.Username, role)
+	}
+	return nil
+}
+
+// cmdUsername claims or renames this account's handle, and with no argument
+// reports whether one is free.
+func cmdUsername(args []string) error {
+	if len(args) != 1 {
+		return fmt.Errorf("usage: termcade username <name>")
+	}
+	session, err := registry.LoadSession()
+	if err != nil {
+		return err
+	}
+
+	// Checking availability needs no account, so it works before signing up —
+	// which is when somebody is choosing a name.
+	client := registry.New(registry.URL(session), "")
+	owner, taken, err := client.HandleTaken(args[0])
+	if err != nil {
+		return err
+	}
+	if session == nil {
+		if taken {
+			kind := "an account"
+			if owner.IsOrg {
+				kind = "a studio"
+			}
+			return fmt.Errorf("%s is taken (by %s)", args[0], kind)
+		}
+		fmt.Printf("%s is available — claim it with `termcade signup`\n", args[0])
+		return nil
+	}
+
+	claimed, err := registry.New(registry.URL(session), session.Token).SetUsername(args[0])
+	if err != nil {
+		return err
+	}
+	// The stored session carries the handle, so it has to follow the rename or
+	// every later command reports the old one.
+	session.Username = claimed.Name
+	if err := registry.SaveSession(*session); err != nil {
+		return err
+	}
+	fmt.Printf("you are %s — publish as %s/<game>\n", claimed.Name, claimed.Name)
+	return nil
+}
+
+// cmdAccountDelete removes the account, after saying what that means and
+// waiting for the word.
+func cmdAccountDelete(args []string) error {
+	session, err := registry.LoadSession()
+	if err != nil {
+		return err
+	}
+	if session == nil {
+		return fmt.Errorf("not signed in — run `termcade login`")
+	}
+
+	// Confirmed by typing the handle, not by pressing y. This releases a name
+	// somebody else can then claim, and it cannot be undone.
+	if len(args) != 1 || args[0] != session.Username {
+		return fmt.Errorf(
+			"this deletes %s and releases the handle %q for anyone to claim.\n"+
+				"it cannot be undone. to confirm:\n\n  termcade account delete %s",
+			session.Email, session.Username, session.Username)
+	}
+
+	if err := registry.New(registry.URL(session), session.Token).DeleteAccount(); err != nil {
+		return err
+	}
+	if err := registry.ClearSession(); err != nil {
+		return err
+	}
+	fmt.Println("account deleted")
+	return nil
+}
+
+func cmdAccount(args []string) error {
+	if len(args) >= 1 && args[0] == "delete" {
+		return cmdAccountDelete(args[1:])
+	}
+	return fmt.Errorf("unknown account subcommand; try: termcade account delete <username>")
 }

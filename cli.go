@@ -36,6 +36,11 @@ usage:
                                add · remove)
   termcade keys                publish keys for CI (list · new · revoke)
 
+  termcade whoami              who you are and what you can publish under
+  termcade username <name>     claim or rename your handle (or check one is
+                               free, signed out)
+  termcade account delete <u>  delete your account
+
   termcade signup [email]      create a marketplace account
   termcade login [email]       sign in (publishing and your account library)
   termcade logout              sign out
@@ -75,6 +80,12 @@ func runCommand(args []string) bool {
 		err = cmdKeys(args[1:])
 	case "org":
 		err = cmdOrg(args[1:])
+	case "whoami":
+		err = cmdWhoami()
+	case "username":
+		err = cmdUsername(args[1:])
+	case "account":
+		err = cmdAccount(args[1:])
 	case "dev":
 		switch {
 		case len(args) >= 2 && args[1] == "build":
