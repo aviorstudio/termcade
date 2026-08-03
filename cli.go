@@ -25,6 +25,8 @@ usage:
                                or a .tcade file or URL (needs an account)
   termcade remove <id>         remove an added game (id is author/slug)
   termcade list                list the games in your arcade
+  termcade sync                install everything on your account that is
+                               missing here
 
   termcade publish <repo> <tag> [asset]
                                publish a release: point the marketplace at a
@@ -55,6 +57,8 @@ func runCommand(args []string) bool {
 		err = cmdRemove(args[1:])
 	case "list":
 		err = cmdList()
+	case "sync":
+		err = cmdSync()
 	case "login":
 		err = cmdLogin(args[1:])
 	case "signup":
@@ -410,5 +414,95 @@ func cmdDevBuild(args []string) error {
 		return err
 	}
 	fmt.Printf("built %s %s → %s\n", m.Game.ID, m.Game.Version, out)
+	return nil
+}
+
+// cmdSync installs everything on your account that is missing from this
+// machine.
+//
+// The library is the half of an account that follows you: adds and removes
+// mirror to it from the arcade, the CLI and the app alike, and until now
+// nothing brought it back down. A new machine, a reinstall, or a game added
+// from your phone all end here.
+//
+// It only adds. A game installed locally but absent from the library is left
+// alone — that is a local file someone installed on purpose, and deleting it
+// because a server has not heard of it would be the wrong way round.
+func cmdSync() error {
+	session, err := registry.LoadSession()
+	if err != nil {
+		return err
+	}
+	if session == nil {
+		return fmt.Errorf("syncing your library requires an account — run `termcade login`")
+	}
+	client := registry.New(registry.URL(session), session.Token)
+
+	library, err := client.Library()
+	if errors.Is(err, registry.ErrLoginRequired) {
+		return fmt.Errorf("your session has expired — run `termcade login`")
+	}
+	if err != nil {
+		return err
+	}
+	if len(library) == 0 {
+		fmt.Println("nothing in your library yet — add a game and it will follow you")
+		return nil
+	}
+
+	rt := plugin.NewRuntime(context.Background())
+	installed := map[string]bool{}
+	for _, g := range discoverGames(rt) {
+		installed[g.Info.ID] = true
+	}
+	// Closed before installing: a runtime holding compiled modules from the
+	// games directory has no business being open while that directory is
+	// written to.
+	rt.Close()
+
+	added, failed := 0, 0
+	for _, game := range library {
+		if installed[game.ID] {
+			continue
+		}
+		author, slug, ok := strings.Cut(game.ID, "/")
+		if !ok {
+			continue
+		}
+		if !game.HasPackage {
+			fmt.Fprintf(os.Stderr, "skipping %s: nothing published to install yet\n", game.ID)
+			continue
+		}
+		path, err := client.Download(author, slug)
+		if err != nil {
+			// One unavailable game must not strand the rest — a deleted
+			// release is the publisher's doing, not this player's.
+			fmt.Fprintf(os.Stderr, "could not restore %s: %v\n", game.ID, err)
+			failed++
+			continue
+		}
+		raw, readErr := os.ReadFile(path)
+		os.Remove(path)
+		if readErr != nil {
+			fmt.Fprintf(os.Stderr, "could not restore %s: %v\n", game.ID, readErr)
+			failed++
+			continue
+		}
+		if err := installPackage(raw); err != nil {
+			fmt.Fprintf(os.Stderr, "could not restore %s: %v\n", game.ID, err)
+			failed++
+			continue
+		}
+		added++
+	}
+
+	switch {
+	case added == 0 && failed == 0:
+		fmt.Println("your library is already here")
+	case failed > 0:
+		return fmt.Errorf("restored %d game(s); %d could not be installed", added, failed)
+	default:
+		fmt.Printf("restored %d game(s)\n", added)
+	}
 	return nil
 }
