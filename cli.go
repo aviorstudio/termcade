@@ -32,6 +32,8 @@ usage:
                                publish a release: point the marketplace at a
                                .tcade on one of your GitHub releases
 
+  termcade org                 studios you publish under (list · new · show ·
+                               add · remove)
   termcade keys                publish keys for CI (list · new · revoke)
 
   termcade signup [email]      create a marketplace account
@@ -71,6 +73,8 @@ func runCommand(args []string) bool {
 		err = cmdPublish(args[1:])
 	case "keys":
 		err = cmdKeys(args[1:])
+	case "org":
+		err = cmdOrg(args[1:])
 	case "dev":
 		switch {
 		case len(args) >= 2 && args[1] == "build":

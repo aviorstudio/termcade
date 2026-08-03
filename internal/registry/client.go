@@ -386,3 +386,51 @@ func (c *Client) Keys() ([]Key, error) {
 func (c *Client) DeleteKey(id string) error {
 	return c.do(http.MethodDelete, "/v1/keys/"+url.PathEscape(id), nil, nil)
 }
+
+// Org is a studio: a handle more than one person can publish under.
+type Org struct {
+	Username string   `json:"username"`
+	Link     string   `json:"link,omitempty"`
+	Bio      string   `json:"bio,omitempty"`
+	Admin    bool     `json:"admin"`
+	Games    []string `json:"games,omitempty"`
+}
+
+// Me is who the caller is, and every handle they may publish under. Clients
+// read Handles to offer a choice at publish time rather than making an author
+// guess which names are theirs.
+type Me struct {
+	Email    string   `json:"email"`
+	Username string   `json:"username,omitempty"`
+	Orgs     []Org    `json:"orgs"`
+	Handles  []string `json:"handles"`
+}
+
+func (c *Client) Me() (Me, error) {
+	var out Me
+	return out, c.do(http.MethodGet, "/v1/me", nil, &out)
+}
+
+// CreateOrg creates a studio and claims its handle, with the caller as its
+// first admin.
+func (c *Client) CreateOrg(username, bio, link string) (Org, error) {
+	var out Org
+	body := map[string]string{"username": username, "bio": bio, "link": link}
+	return out, c.do(http.MethodPost, "/v1/orgs", body, &out)
+}
+
+func (c *Client) Org(name string) (Org, error) {
+	var out Org
+	return out, c.do(http.MethodGet, "/v1/orgs/"+url.PathEscape(name), nil, &out)
+}
+
+// AddMember adds somebody to a studio, or changes whether they administer it.
+func (c *Client) AddMember(org, email string, admin bool) error {
+	body := map[string]any{"email": email, "admin": admin}
+	return c.do(http.MethodPost, "/v1/orgs/"+url.PathEscape(org)+"/members", body, nil)
+}
+
+func (c *Client) RemoveMember(org, email string) error {
+	return c.do(http.MethodDelete,
+		"/v1/orgs/"+url.PathEscape(org)+"/members/"+url.PathEscape(email), nil, nil)
+}
