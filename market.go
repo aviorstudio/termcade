@@ -108,8 +108,8 @@ func newMarketplace(rt *plugin.Runtime) *shell.Marketplace {
 			return registry.SaveSession(session)
 		},
 
-		SignUp: func(email, password string) error {
-			session, err := registry.New(registry.URL(nil), "").Signup(email, password)
+		SignUp: func(username, email, password string) error {
+			session, err := registry.New(registry.URL(nil), "").Signup(email, password, username)
 			if err != nil {
 				return err
 			}
