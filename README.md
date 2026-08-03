@@ -105,8 +105,10 @@ screens, so you never need the website.
 The gate is a product decision, not a security boundary: packages are public
 GitHub release assets, so an account is not what keeps anyone out. What it
 does is give every installed game somewhere to belong — your adds and removes
-mirror to a library on your account, though nothing restores that onto a new
-machine yet.
+mirror to a library on your account, and `termcade sync` brings it back down
+— which `termcade login` does for you, so signing in on a new machine is
+enough. Sync only adds: a game you installed from a file stays put, because a
+server having never heard of it is not a reason to delete it.
 
 Signing up claims a **username** — your publishing handle, and the author
 segment of every game you release. `nicodes/pong` and `aviorstudio/tetris` are
