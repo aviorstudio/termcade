@@ -359,3 +359,30 @@ func (c *Client) Library() ([]Game, error) {
 	var games []Game
 	return games, c.do(http.MethodGet, "/v1/library", nil, &games)
 }
+
+// Key is a publish credential. Token is set only by CreateKey, in the one
+// response that carries it.
+type Key struct {
+	ID       string `json:"id"`
+	Name     string `json:"name"`
+	Username string `json:"username"`
+	LastUsed string `json:"last_used_at,omitempty"`
+	Created  string `json:"created_at"`
+	Token    string `json:"token,omitempty"`
+}
+
+// CreateKey mints a publish key scoped to one handle.
+func (c *Client) CreateKey(name, username string) (Key, error) {
+	var out Key
+	body := map[string]string{"name": name, "username": username}
+	return out, c.do(http.MethodPost, "/v1/keys", body, &out)
+}
+
+func (c *Client) Keys() ([]Key, error) {
+	var keys []Key
+	return keys, c.do(http.MethodGet, "/v1/keys", nil, &keys)
+}
+
+func (c *Client) DeleteKey(id string) error {
+	return c.do(http.MethodDelete, "/v1/keys/"+url.PathEscape(id), nil, nil)
+}
