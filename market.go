@@ -52,15 +52,16 @@ func newMarketplace(rt *plugin.Runtime) *shell.Marketplace {
 			if err != nil {
 				return err
 			}
+			// Browsing is anonymous; taking a game home is not. The footer
+			// names the key that fixes this.
+			if session == nil {
+				return fmt.Errorf("sign in to install — press l")
+			}
 			author, slug, ok := strings.Cut(id, "/")
 			if !ok {
 				return fmt.Errorf("bad game id %q", id)
 			}
-			token := ""
-			if session != nil {
-				token = session.Token
-			}
-			client := registry.New(registry.URL(session), token)
+			client := registry.New(registry.URL(session), session.Token)
 			path, err := client.Download(author, slug)
 			if err != nil {
 				return err
@@ -73,11 +74,9 @@ func newMarketplace(rt *plugin.Runtime) *shell.Marketplace {
 			if _, _, err := installPackageBytes(raw); err != nil {
 				return err
 			}
-			// Library sync is best-effort when signed in; the game is already
-			// installed locally either way.
-			if session != nil {
-				_ = client.LibraryAdd(author, slug)
-			}
+			// Library sync is best-effort; the game is already installed
+			// locally either way.
+			_ = client.LibraryAdd(author, slug)
 			return nil
 		},
 

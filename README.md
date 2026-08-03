@@ -2,26 +2,28 @@
 
 A terminal arcade. Classic games rendered at sub-cell resolution with block
 pixels, built on [Bubble Tea](https://charm.land/bubbletea). Every game is a
-sandboxed WebAssembly package, and the arcade ships with none of them —
-anyone writes them against the SDK and publishes them for players to
+sandboxed WebAssembly package — including the three that ship with it —
+and anyone writes them against the SDK and publishes them for players to
 `termcade add`.
 
 ## Games
 
-There are no bundled games. A fresh termcade is an empty cabinet and a
-marketplace; press `m` and install something:
+Three games are bundled, unpacked into your games directory the first time
+the arcade runs:
 
-```sh
-termcade add aviorstudio/asteroid    # Asteroids-style rock shooter
-termcade add aviorstudio/tetris      # falling-block stacker
-termcade add aviorstudio/brickough   # Breakout-style brick breaker
-```
+| Game | What it is |
+| --- | --- |
+| **asteroid** | Asteroids-style rock shooter |
+| **tetris** | falling-block stacker |
+| **brickough** | Breakout-style brick breaker |
 
-Those three live in
-[termcade-games](https://github.com/aviorstudio/termcade-games), outside this
-repository, and reach players only through the registry. That is deliberate:
-a first-party game with a shortcut into the binary is a first-party game that
-never exercises the path everyone else has to use.
+They are ordinary `.tcade` packages running in the same sandbox as anything
+you install, built from source in
+[termcade-games](https://github.com/aviorstudio/termcade-games) and vendored
+here as packages. Nothing is compiled into the binary as a game.
+
+Remove one and it stays removed — the arcade seeds a game once, not every
+run. For anything else, press `m` for the marketplace.
 
 ## Run
 
@@ -94,12 +96,17 @@ High scores persist to `~/.config/termcade/scores.json`.
 ## The marketplace
 
 The arcade opens on your recently played games, with the library (`l`) and
-marketplace (`m`) one keystroke away. Press `m` to browse and install — no
-account needed for either, because the packages are public GitHub release
-assets and there is nothing an account could gate. Sign in to publish; your
-adds and removes are also mirrored to a library on your account, though
-nothing restores that onto a new machine yet. The arcade has its own
-sign-in/sign-up screens, so you never need the website.
+marketplace (`m`) one keystroke away. Press `m` to browse — that much is
+anonymous — and sign in to install. The bundled games are what a signed-out
+arcade plays; an account is what adds to them, and it is also what publishing
+and the library mirror hang off. The arcade has its own sign-in/sign-up
+screens, so you never need the website.
+
+The gate is a product decision, not a security boundary: packages are public
+GitHub release assets, so an account is not what keeps anyone out. What it
+does is give every installed game somewhere to belong — your adds and removes
+mirror to a library on your account, though nothing restores that onto a new
+machine yet.
 
 The same works from the command line:
 
@@ -107,7 +114,7 @@ The same works from the command line:
 termcade signup                          # create an account (or: termcade login)
 termcade add aviorstudio/brickough       # add straight from the marketplace
 termcade add aviorstudio/brickough@0.0.1 # or pin a version
-termcade add <file-or-url>.tcade         # or from a package you have
+termcade add <file-or-url>.tcade         # or from a package you have (also signed in)
 termcade list                            # what's here
 termcade remove author/slug              # take one off (updates your library too)
 ```
