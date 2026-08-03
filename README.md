@@ -126,10 +126,9 @@ that does narrow the choice is the ABI: the registry picks the newest release
 your arcade can actually run, so a game that has moved on to a later ABI tells
 you to update termcade instead of handing you a package the host would refuse.
 
-The registry defaults to local dev (`http://127.0.0.1:8080`, the termcade-be
-stack) and will point at `https://api.termca.de` once that is deployed.
-`TERMCADE_REGISTRY` overrides it either way — which is how you reach a local
-stack after the default moves:
+The registry is `https://api.termca.de`. `TERMCADE_REGISTRY` overrides it,
+which is how you reach a local termcade-be stack (`make dev` serves one on
+port 8080):
 
 ```sh
 TERMCADE_REGISTRY=http://127.0.0.1:8080 termcade add you/mygame
