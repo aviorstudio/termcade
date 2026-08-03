@@ -32,6 +32,8 @@ usage:
                                publish a release: point the marketplace at a
                                .tcade on one of your GitHub releases
 
+  termcade keys                publish keys for CI (list · new · revoke)
+
   termcade signup [email]      create a marketplace account
   termcade login [email]       sign in (publishing and your account library)
   termcade logout              sign out
@@ -67,6 +69,8 @@ func runCommand(args []string) bool {
 		err = cmdLogout()
 	case "publish":
 		err = cmdPublish(args[1:])
+	case "keys":
+		err = cmdKeys(args[1:])
 	case "dev":
 		switch {
 		case len(args) >= 2 && args[1] == "build":
@@ -321,12 +325,23 @@ func cmdPublish(args []string) error {
 	if len(args) < 2 || len(args) > 3 {
 		return fmt.Errorf("usage: termcade publish <repo-url> <tag> [asset]")
 	}
+	// TERMCADE_TOKEN is how CI publishes: a scoped key instead of a session,
+	// on a machine nobody is logged in to. It wins over a stored session so a
+	// workflow cannot accidentally publish as whoever last used the runner.
 	session, err := registry.LoadSession()
 	if err != nil {
 		return err
 	}
-	if session == nil {
-		return fmt.Errorf("publishing requires an account — run `termcade login` (or `termcade signup`)")
+	token := strings.TrimSpace(os.Getenv("TERMCADE_TOKEN"))
+	switch {
+	case token != "":
+		// A key names its own handle, so no session is needed or wanted.
+	case session != nil:
+		token = session.Token
+	default:
+		return fmt.Errorf(
+			"publishing requires an account — run `termcade login`, " +
+				"or set TERMCADE_TOKEN to a publish key (`termcade keys new`)")
 	}
 
 	repo, tag := args[0], args[1]
@@ -347,7 +362,7 @@ func cmdPublish(args []string) error {
 		asset = m.Slug() + ".tcade"
 	}
 
-	out, err := registry.New(registry.URL(session), session.Token).Publish(repo, tag, asset)
+	out, err := registry.New(registry.URL(session), token).Publish(repo, tag, asset)
 	if err != nil {
 		return err
 	}
