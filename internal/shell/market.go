@@ -121,7 +121,10 @@ func (m Model) updateMarketMsg(msg tea.Msg) (Model, tea.Cmd, bool) {
 		m.market.busy = false
 		m.market.loaded = true
 		if msg.err != nil {
-			m.market.notice = "marketplace unreachable: " + msg.err.Error()
+			// Unprefixed: the client writes messages meant to be read, and
+			// "marketplace unreachable: the marketplace is not answering"
+			// says it twice.
+			m.market.notice = msg.err.Error()
 			return m, nil, true
 		}
 		m.market.games = msg.games

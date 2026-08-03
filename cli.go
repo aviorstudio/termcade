@@ -90,6 +90,11 @@ func runCommand(args []string) bool {
 // gameIDRe matches a marketplace id, e.g. "aviorstudio/brickough".
 var gameIDRe = regexp.MustCompile(`^[a-z0-9][a-z0-9-]*/[a-z0-9][a-z0-9-]*$`)
 
+// slugOnlyRe matches half of one — "brickough" with the author left off. The
+// character class is gameIDRe's without the slash, so nothing with a path, a
+// scheme, or a file extension can reach it.
+var slugOnlyRe = regexp.MustCompile(`^[a-z0-9][a-z0-9-]*$`)
+
 func cmdAdd(args []string) error {
 	if len(args) != 1 {
 		return fmt.Errorf("usage: termcade add <author/slug | file | url>")
@@ -103,6 +108,16 @@ func cmdAdd(args []string) error {
 	// told to sign in and then told the syntax changed is two trips.
 	if id, _, pinned := strings.Cut(src, "@"); pinned && gameIDRe.MatchString(id) {
 		return fmt.Errorf("versions cannot be pinned — `termcade add %s` installs what %s currently ships", id, id)
+	}
+
+	// Forgetting the author is the likeliest way to get this wrong, and
+	// "open asteroid: no such file or directory" answers a question about the
+	// filesystem that nobody asked. Anything with a slash, a scheme, or a
+	// .tcade on the end meant a file or a URL and is left alone.
+	if slugOnlyRe.MatchString(src) {
+		if _, statErr := os.Stat(src); statErr != nil {
+			return fmt.Errorf("%q is missing an author — marketplace ids look like author/slug, e.g. aviorstudio/%s", src, src)
+		}
 	}
 
 	session, err := registry.LoadSession()
@@ -271,7 +286,16 @@ func cmdList() error {
 	rt := plugin.NewRuntime(context.Background())
 	defer rt.Close()
 
-	for _, g := range discoverGames(rt) {
+	games := discoverGames(rt)
+	// The TUI has empty states everywhere and the CLI had none, so removing
+	// your last game made `list` answer with nothing at all — which reads as
+	// a broken command rather than an empty arcade.
+	if len(games) == 0 {
+		fmt.Println("no games installed — run `termcade` and press m for the marketplace")
+		return nil
+	}
+
+	for _, g := range games {
 		if g.Err != nil {
 			fmt.Printf("%-24s %-28s broken: %v\n", g.Info.Title, g.Info.ID, g.Err)
 			continue

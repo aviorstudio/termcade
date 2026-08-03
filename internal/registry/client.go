@@ -1,11 +1,12 @@
 // Package registry is the termca.de client: marketplace catalog, package
 // resolution, account auth, and the user's library.
 //
-// The registry stores no packages. It is an index that answers "where does
-// this version live, and what must it hash to" — the bytes come from the
-// GitHub release the author published, and are verified here against the
-// digest the registry recorded when it validated them. Browsing and
-// installing are anonymous; account operations send the session token.
+// The registry stores no packages. It is an index that answers "which release
+// should I install, and what must it hash to" — the bytes originate from the
+// GitHub release the author published, arrive through the registry, and are
+// verified here against the digest it recorded when it validated them.
+// Browsing is anonymous; installing and account operations send the session
+// token.
 package registry
 
 import (
@@ -39,6 +40,26 @@ const maxPackageSize = 64 << 20
 
 // ErrLoginRequired distinguishes "you need an account" from real failures.
 var ErrLoginRequired = errors.New("login required")
+
+// ErrUnreachable is the marketplace not answering at all: no network, or
+// nothing listening where the registry is supposed to be.
+//
+// It carries no transport detail. Go's is accurate and useless to a player —
+// `Get "http://127.0.0.1:8080/v1/games/aviorstudio/tetris/resolve?abi=1":
+// dial tcp 127.0.0.1:8080: connect: connection refused` names a host, a port,
+// a query string and a syscall, none of which anyone can act on, and the
+// arcade renders it into a TUI notice. TERMCADE_DEBUG puts it back for
+// whoever is actually debugging.
+var ErrUnreachable = errors.New("the marketplace is not answering — check your connection and try again")
+
+// unreachable wraps a transport failure as ErrUnreachable, keeping the
+// original only when someone asked for it.
+func unreachable(err error) error {
+	if os.Getenv("TERMCADE_DEBUG") != "" {
+		return fmt.Errorf("%w: %v", ErrUnreachable, err)
+	}
+	return ErrUnreachable
+}
 
 // Game is one marketplace catalog entry. The version and requirements are
 // those of its newest release; a game with none reports has_package false.
@@ -133,7 +154,7 @@ func (c *Client) do(method, path string, body, out any) error {
 	}
 	resp, err := c.http.Do(req)
 	if err != nil {
-		return fmt.Errorf("registry unreachable: %w", err)
+		return unreachable(err)
 	}
 	defer resp.Body.Close()
 
@@ -141,12 +162,18 @@ func (c *Client) do(method, path string, body, out any) error {
 		return ErrLoginRequired
 	}
 	if resp.StatusCode < 200 || resp.StatusCode > 299 {
+		// The registry writes its own messages for a person to read, so they
+		// are passed through unprefixed — the CLI already says "termcade:",
+		// and "termcade: registry: ..." is a stutter, not attribution.
 		var msg apiMessage
 		raw, _ := io.ReadAll(io.LimitReader(resp.Body, 8<<10))
 		if json.Unmarshal(raw, &msg) == nil && msg.Message != "" {
-			return fmt.Errorf("registry: %s", msg.Message)
+			return errors.New(msg.Message)
 		}
-		return fmt.Errorf("registry: HTTP %d", resp.StatusCode)
+		if resp.StatusCode >= 500 {
+			return fmt.Errorf("the marketplace is having trouble (HTTP %d) — try again shortly", resp.StatusCode)
+		}
+		return fmt.Errorf("the marketplace refused that request (HTTP %d)", resp.StatusCode)
 	}
 	if out == nil {
 		return nil
@@ -211,7 +238,7 @@ func (c *Client) Download(author, slug string) (string, error) {
 
 	resp, err := c.http.Do(req)
 	if err != nil {
-		return "", fmt.Errorf("registry unreachable: %w", err)
+		return "", unreachable(err)
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode == http.StatusUnauthorized {
@@ -221,9 +248,12 @@ func (c *Client) Download(author, slug string) (string, error) {
 		var msg apiMessage
 		raw, _ := io.ReadAll(io.LimitReader(resp.Body, 8<<10))
 		if json.Unmarshal(raw, &msg) == nil && msg.Message != "" {
-			return "", fmt.Errorf("downloading %s: %s", resolved.ID, msg.Message)
+			return "", fmt.Errorf("could not download %s: %s", resolved.ID, msg.Message)
 		}
-		return "", fmt.Errorf("downloading %s: HTTP %d", resolved.ID, resp.StatusCode)
+		if resp.StatusCode >= 500 {
+			return "", fmt.Errorf("could not download %s: the marketplace is having trouble — try again shortly", resolved.ID)
+		}
+		return "", fmt.Errorf("could not download %s (HTTP %d)", resolved.ID, resp.StatusCode)
 	}
 
 	tmp, err := os.CreateTemp("", slug+"-*.tcade")
