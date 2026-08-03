@@ -27,13 +27,15 @@ import (
 	"github.com/aviorstudio/termcade/sdk"
 )
 
-// DefaultURL is the development default: the termcade-be stack on localhost.
-// It becomes https://api.termca.de when that is deployed and answering — and
-// not before, because this value is compiled into every released binary, so
-// pointing it at a host that is not up costs a release to undo. Until then,
-// TERMCADE_REGISTRY overrides it for anyone who wants to talk to something
-// else.
-const DefaultURL = "http://127.0.0.1:8080"
+// DefaultURL is the marketplace every released binary talks to.
+//
+// This was localhost until api.termca.de was deployed and answering, which was
+// the stated condition for moving it: the value is compiled in, so pointing it
+// at a host that is not up costs a release to undo. The host now serves.
+//
+// TERMCADE_REGISTRY overrides it, which is how you reach a local stack —
+// `make dev` in termcade-be still listens on 127.0.0.1:8080.
+const DefaultURL = "https://api.termca.de"
 
 // maxPackageSize matches the registry's publish-time ceiling.
 const maxPackageSize = 64 << 20
