@@ -101,15 +101,18 @@ func cmdAdd(args []string) error {
 	if err != nil {
 		return err
 	}
+	// Every install goes through an account, whatever the source. The bundled
+	// starter pack is what a signed-out arcade has to play; adding to it is
+	// the thing an account is for.
+	if session == nil {
+		return fmt.Errorf("installing a game requires an account — run `termcade login` (or `termcade signup`)")
+	}
 
 	// Marketplace id (optionally pinned, author/slug@1.2.3) → fetch through
 	// the registry and sync the library.
 	id, version, _ := strings.Cut(src, "@")
 	if _, statErr := os.Stat(src); gameIDRe.MatchString(id) && statErr != nil {
 		return addFromRegistry(session, id, version)
-	}
-	if session == nil {
-		return fmt.Errorf("adding a package from a file or url requires an account — run `termcade login` (or `termcade signup`)")
 	}
 
 	var raw []byte
@@ -128,13 +131,11 @@ func cmdAdd(args []string) error {
 	return installPackage(raw)
 }
 
+// addFromRegistry installs a marketplace id. The session is never nil: cmdAdd
+// turns a signed-out install away before it gets here.
 func addFromRegistry(session *registry.Session, id, version string) error {
 	author, slug, _ := strings.Cut(id, "/")
-	token := ""
-	if session != nil {
-		token = session.Token
-	}
-	client := registry.New(registry.URL(session), token)
+	client := registry.New(registry.URL(session), session.Token)
 
 	resolved, err := client.Resolve(author, slug, version)
 	if errors.Is(err, registry.ErrLoginRequired) {
@@ -157,10 +158,8 @@ func addFromRegistry(session *registry.Session, id, version string) error {
 		return err
 	}
 	// Library sync is best-effort: the game is already installed locally.
-	if session != nil {
-		if err := client.LibraryAdd(author, slug); err != nil {
-			fmt.Fprintf(os.Stderr, "warning: could not add %s to your library: %v\n", id, err)
-		}
+	if err := client.LibraryAdd(author, slug); err != nil {
+		fmt.Fprintf(os.Stderr, "warning: could not add %s to your library: %v\n", id, err)
 	}
 	return nil
 }

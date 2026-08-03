@@ -13,18 +13,25 @@ import (
 	"github.com/aviorstudio/termcade/internal/scores"
 	"github.com/aviorstudio/termcade/internal/settings"
 	"github.com/aviorstudio/termcade/internal/shell"
+	"github.com/aviorstudio/termcade/internal/starter"
 	"github.com/aviorstudio/termcade/sdk"
 )
 
-// discoverGames loads every installed game. There is nothing else to load:
-// the arcade compiles no games in and bundles none, so a fresh install is an
-// empty cabinet and a marketplace, and everything on the menu got there the
-// same way a stranger's game would.
+// discoverGames seeds the starter pack on first run, then loads every
+// installed game. The arcade compiles no games in — everything on the menu is
+// a .tcade running in the sandbox, bundled or added — so a fresh install has
+// something to play before it has an account or a network.
+//
+// A failed seed is reported and survived: the arcade with no games still
+// beats no arcade.
 func discoverGames(rt *plugin.Runtime) []engine.Registration {
 	dir, err := plugin.GamesDir()
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "termcade: games directory unavailable:", err)
 		return nil
+	}
+	if err := starter.Seed(dir); err != nil {
+		fmt.Fprintln(os.Stderr, "termcade: starter pack:", err)
 	}
 	return plugin.Games(rt, dir, nil)
 }
