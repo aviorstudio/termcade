@@ -352,3 +352,10 @@ func (c *Client) LibraryAdd(author, slug string) error {
 func (c *Client) LibraryRemove(author, slug string) error {
 	return c.do(http.MethodDelete, "/v1/library/"+author+"/"+slug, nil, nil)
 }
+
+// Library lists the games on this account, newest addition first. It is the
+// server's copy: what you have added anywhere, not what is installed here.
+func (c *Client) Library() ([]Game, error) {
+	var games []Game
+	return games, c.do(http.MethodGet, "/v1/library", nil, &games)
+}

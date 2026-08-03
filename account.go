@@ -66,6 +66,16 @@ func cmdLogin(args []string) error {
 		return err
 	}
 	fmt.Printf("logged in as %s (%s)\n", session.Email, session.Registry)
+
+	// Signing in on a new machine is the moment your library should arrive.
+	// Nobody should have to know a second command exists to get the games
+	// they already own, so this runs here rather than waiting to be asked.
+	//
+	// Best-effort: the login itself succeeded, and reporting it as a failure
+	// because a restore did not finish would be a lie about what happened.
+	if err := cmdSync(); err != nil {
+		fmt.Fprintf(os.Stderr, "note: could not restore your library: %v\n", err)
+	}
 	return nil
 }
 
