@@ -266,6 +266,19 @@ func cmdOrg(args []string) error {
 		for _, game := range org.Games {
 			fmt.Printf("  %s\n", game)
 		}
+		// Only members see addresses, so this is attempted and quietly
+		// skipped: a studio page you can read without belonging to it should
+		// not fail because you do not.
+		if members, err := client.Members(args[1]); err == nil && len(members) > 0 {
+			fmt.Println()
+			for _, m := range members {
+				role := "member"
+				if m.Admin {
+					role = "admin"
+				}
+				fmt.Printf("  %-32s %s\n", m.Email, role)
+			}
+		}
 		return nil
 
 	case args[0] == "add":
