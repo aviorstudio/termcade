@@ -69,23 +69,52 @@ func cmdLogin(args []string) error {
 	return nil
 }
 
+// promptUsername collects the handle a new account claims. It is not
+// optional: a handle is the author segment of every game published from this
+// account, and an account without one cannot publish at all.
+func promptUsername(reader *bufio.Reader) (string, error) {
+	fmt.Print("username (this is your publishing handle, e.g. nicodes): ")
+	line, err := reader.ReadString('\n')
+	if err != nil {
+		return "", err
+	}
+	name := strings.TrimSpace(line)
+	if name == "" {
+		return "", fmt.Errorf("a username is required")
+	}
+	return name, nil
+}
+
 func cmdSignup(args []string) error {
 	if len(args) > 1 {
 		return fmt.Errorf("usage: termcade signup [email]")
+	}
+	username, err := promptUsername(bufio.NewReader(os.Stdin))
+	if err != nil {
+		return err
 	}
 	email, password, err := promptCredentials(args, true)
 	if err != nil {
 		return err
 	}
 	client := registry.New(registry.URL(nil), "")
-	session, err := client.Signup(email, password)
+	session, err := client.Signup(email, password, username)
 	if err != nil {
 		return err
 	}
 	if err := registry.SaveSession(session); err != nil {
 		return err
 	}
-	fmt.Printf("welcome to termcade, %s\n", session.Email)
+	// The handle is the useful half of the greeting: it is what a game id
+	// starts with, so it is what an author needs to know they have.
+	if session.Username != "" {
+		fmt.Printf("welcome to termcade, %s — publish as %s/<game>\n", session.Email, session.Username)
+	} else {
+		fmt.Printf("welcome to termcade, %s\n", session.Email)
+	}
+	if session.Notice != "" {
+		fmt.Fprintln(os.Stderr, "note:", session.Notice)
+	}
 	return nil
 }
 

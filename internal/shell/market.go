@@ -28,7 +28,7 @@ type Marketplace struct {
 	// Account reports the signed-in email, or ok=false when signed out.
 	Account func() (string, bool)
 	SignIn  func(email, password string) error
-	SignUp  func(email, password string) error
+	SignUp  func(username, email, password string) error
 	SignOut func() error
 	// Reload re-discovers installed games after an install/remove.
 	Reload func() []engine.Registration
@@ -64,11 +64,24 @@ type authState struct {
 	stage     int
 	chooseIdx int
 	signup    bool
-	focus     int // 0 email, 1 password
-	email     string
-	password  string
-	err       string
-	busy      bool
+	// focus indexes authFields, which is one longer when signing up: a new
+	// account claims a handle, and an existing one already has it.
+	focus    int
+	username string
+	email    string
+	password string
+	err      string
+	busy     bool
+}
+
+// authFields is the form, in tab order. Signing up asks for a handle first —
+// it is the name games are published under, so it is the decision being made,
+// not an afterthought below the password.
+func (a *authState) fields() []*string {
+	if a.signup {
+		return []*string{&a.username, &a.email, &a.password}
+	}
+	return []*string{&a.email, &a.password}
 }
 
 func (m Model) loadMarket() tea.Cmd {
@@ -93,11 +106,11 @@ func (m Model) removeCmd(id string) tea.Cmd {
 	}
 }
 
-func (m Model) authCmd(signup bool, email, password string) tea.Cmd {
+func (m Model) authCmd(signup bool, username, email, password string) tea.Cmd {
 	mp := m.mp
 	return func() tea.Msg {
 		if signup {
-			return authDoneMsg{err: mp.SignUp(email, password)}
+			return authDoneMsg{err: mp.SignUp(username, email, password)}
 		}
 		return authDoneMsg{err: mp.SignIn(email, password)}
 	}
@@ -264,19 +277,25 @@ func (m Model) updateAuthKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		m.auth.err = ""
 		return m, nil
 	case "tab", "down":
-		m.auth.focus = (m.auth.focus + 1) % 2
+		n := len(m.auth.fields())
+		m.auth.focus = (m.auth.focus + 1) % n
 		return m, nil
 	case "shift+tab", "up":
-		m.auth.focus = (m.auth.focus + 1) % 2
+		n := len(m.auth.fields())
+		m.auth.focus = (m.auth.focus + n - 1) % n
 		return m, nil
 	case "enter":
 		if m.auth.email == "" || m.auth.password == "" {
 			m.auth.err = "email and password are required"
 			return m, nil
 		}
+		if m.auth.signup && m.auth.username == "" {
+			m.auth.err = "a username is required — it is what your games are published under"
+			return m, nil
+		}
 		m.auth.busy = true
 		m.auth.err = ""
-		return m, m.authCmd(m.auth.signup, m.auth.email, m.auth.password)
+		return m, m.authCmd(m.auth.signup, m.auth.username, m.auth.email, m.auth.password)
 	case "backspace":
 		field := m.authField()
 		if *field != "" {
@@ -294,10 +313,11 @@ func (m Model) updateAuthKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 }
 
 func (m *Model) authField() *string {
-	if m.auth.focus == 0 {
+	fields := m.auth.fields()
+	if m.auth.focus < 0 || m.auth.focus >= len(fields) {
 		return &m.auth.email
 	}
-	return &m.auth.password
+	return fields[m.auth.focus]
 }
 
 // --------------------------------------------------------------- rendering --
@@ -389,6 +409,12 @@ func (m Model) viewAuth() string {
 	}{
 		{"email   ", m.auth.email, false},
 		{"password", m.auth.password, true},
+	}
+	if m.auth.signup {
+		fields = append([]struct {
+			label, value string
+			mask         bool
+		}{{"username", m.auth.username, false}}, fields...)
 	}
 	for i, f := range fields {
 		value := f.value

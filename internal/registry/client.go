@@ -102,6 +102,13 @@ type Session struct {
 	Registry string `json:"registry"`
 	Email    string `json:"email"`
 	Token    string `json:"token"`
+	// Username is the handle this account publishes under. Empty is a real
+	// state — an account whose signup lost a handle race still logs in — and
+	// means publishing is refused until one is claimed.
+	Username string `json:"username,omitempty"`
+	// Notice is a server-side remark about an otherwise usable session. Not
+	// persisted: it describes the moment the session was created.
+	Notice string `json:"notice,omitempty"`
 }
 
 type Client struct {
@@ -308,11 +315,14 @@ func (c *Client) Publish(repo, tag, asset string) (Published, error) {
 type credentials struct {
 	Email    string `json:"email"`
 	Password string `json:"password"`
+	// Username is sent on signup and omitted on login, where the account
+	// already has one.
+	Username string `json:"username,omitempty"`
 }
 
 func (c *Client) Login(email, password string) (Session, error) {
 	var out Session
-	err := c.do(http.MethodPost, "/v1/auth/login", credentials{email, password}, &out)
+	err := c.do(http.MethodPost, "/v1/auth/login", credentials{Email: email, Password: password}, &out)
 	if errors.Is(err, ErrLoginRequired) {
 		return Session{}, errors.New("wrong email or password")
 	}
@@ -323,9 +333,12 @@ func (c *Client) Login(email, password string) (Session, error) {
 	return out, nil
 }
 
-func (c *Client) Signup(email, password string) (Session, error) {
+// Signup creates an account and claims its handle in one call. The handle is
+// required: it is the author segment of every game this account publishes.
+func (c *Client) Signup(email, password, username string) (Session, error) {
 	var out Session
-	if err := c.do(http.MethodPost, "/v1/auth/signup", credentials{email, password}, &out); err != nil {
+	body := credentials{Email: email, Password: password, Username: username}
+	if err := c.do(http.MethodPost, "/v1/auth/signup", body, &out); err != nil {
 		return Session{}, err
 	}
 	out.Registry = c.baseURL

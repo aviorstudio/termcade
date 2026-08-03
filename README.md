@@ -108,10 +108,16 @@ does is give every installed game somewhere to belong — your adds and removes
 mirror to a library on your account, though nothing restores that onto a new
 machine yet.
 
+Signing up claims a **username** — your publishing handle, and the author
+segment of every game you release. `nicodes/pong` and `aviorstudio/tetris` are
+the same kind of name: the second belongs to an org, which is a studio more
+than one person can publish under. Being a member is enough to publish; admin
+governs the studio itself.
+
 The same works from the command line:
 
 ```sh
-termcade signup                          # create an account (or: termcade login)
+termcade signup                          # create an account + claim a handle
 termcade add aviorstudio/brickough       # add straight from the marketplace
 termcade add <file-or-url>.tcade         # or from a package you have (also signed in)
 termcade list                            # what's here
