@@ -55,9 +55,10 @@ type Game struct {
 	SHA256      string `json:"sha256"`
 }
 
-// Resolved is where one release actually lives and what it must hash to. The
-// registry hosts no packages: it hands out a GitHub asset URL plus the digest
-// it recorded when it fetched and validated that package itself.
+// Resolved is which release to install and what it must hash to. The registry
+// stores no packages — a game's releases live on its GitHub releases — but
+// the bytes come back through the registry rather than from there, so URL is
+// provenance rather than somewhere this client fetches from.
 type Resolved struct {
 	ID      string `json:"id"`
 	Name    string `json:"name"`
@@ -158,59 +159,71 @@ func (c *Client) Games() ([]Game, error) {
 	return games, c.do(http.MethodGet, "/v1/games", nil, &games)
 }
 
-// Resolve asks the registry where a version lives. An empty version means
-// the newest one.
+// Resolve asks the registry which release to install: the newest one this
+// arcade can run.
+//
+// There is no way to ask for an older version. A game is not a dependency —
+// nothing builds against one — so the only version worth installing is what
+// the author currently ships.
 //
 // The ABI this arcade speaks goes with the request, so the registry can pick
 // the newest release this binary can actually run rather than the newest one
 // that exists. Without it a game that has moved on to a later ABI would
 // resolve, download, and only then be refused by the host.
-func (c *Client) Resolve(author, slug, version string) (Resolved, error) {
+func (c *Client) Resolve(author, slug string) (Resolved, error) {
 	q := url.Values{}
 	q.Set("abi", strconv.Itoa(sdk.ABIVersion))
-	if version != "" {
-		q.Set("version", version)
-	}
 	var out Resolved
 	return out, c.do(http.MethodGet, "/v1/games/"+author+"/"+slug+"/resolve?"+q.Encode(), nil, &out)
 }
 
-// Download resolves a game and fetches its package to a temp file. The caller
-// removes the returned path.
+// Download resolves a game and fetches its package to a temp file, verifying
+// it against the digest the registry attested. The caller removes the
+// returned path.
+//
+// The bytes come from the registry, not from GitHub. That is what lets an
+// install require an account and lets the arcade and the app take the same
+// path; the games are open source and their assets are public, so it is a
+// product boundary rather than one that keeps anybody out.
+//
+// The digest still does real work: it is the tie between what arrives and
+// what the registry reviewed at publish time, across a hop the registry does
+// not control. A mismatch or a missing digest is fatal.
 func (c *Client) Download(author, slug string) (string, error) {
-	resolved, err := c.Resolve(author, slug, "")
+	resolved, err := c.Resolve(author, slug)
 	if err != nil {
 		return "", err
-	}
-	return c.Fetch(resolved, slug)
-}
-
-// Fetch downloads a resolved package and verifies it against the digest the
-// registry attested.
-//
-// The bytes come from GitHub, not from the registry, so the digest is the
-// only thing tying what arrives to what the registry reviewed — a release
-// asset can be deleted and re-uploaded under the same tag. Unlike the old
-// download path, where the checksum was a header the sender could simply
-// omit, a mismatch or a missing digest here is fatal.
-//
-// Nothing authenticates this request: the registry token is for the registry,
-// and must not be sent to a third-party host.
-func (c *Client) Fetch(resolved Resolved, slug string) (string, error) {
-	if !strings.HasPrefix(resolved.URL, "https://") {
-		return "", fmt.Errorf("registry returned a non-https package url for %s", resolved.ID)
 	}
 	if len(resolved.SHA256) != 64 {
 		return "", fmt.Errorf("registry published no checksum for %s %s", resolved.ID, resolved.Version)
 	}
 
-	resp, err := c.http.Get(resolved.URL)
+	q := url.Values{}
+	q.Set("abi", strconv.Itoa(sdk.ABIVersion))
+	req, err := http.NewRequest(http.MethodGet,
+		c.baseURL+"/v1/games/"+author+"/"+slug+"/download?"+q.Encode(), nil)
 	if err != nil {
-		return "", fmt.Errorf("downloading %s: %w", resolved.URL, err)
+		return "", err
+	}
+	if c.token != "" {
+		req.Header.Set("Authorization", c.token)
+	}
+
+	resp, err := c.http.Do(req)
+	if err != nil {
+		return "", fmt.Errorf("registry unreachable: %w", err)
 	}
 	defer resp.Body.Close()
+	if resp.StatusCode == http.StatusUnauthorized {
+		return "", ErrLoginRequired
+	}
 	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("downloading %s: %s", resolved.URL, resp.Status)
+		var msg apiMessage
+		raw, _ := io.ReadAll(io.LimitReader(resp.Body, 8<<10))
+		if json.Unmarshal(raw, &msg) == nil && msg.Message != "" {
+			return "", fmt.Errorf("downloading %s: %s", resolved.ID, msg.Message)
+		}
+		return "", fmt.Errorf("downloading %s: HTTP %d", resolved.ID, resp.StatusCode)
 	}
 
 	tmp, err := os.CreateTemp("", slug+"-*.tcade")

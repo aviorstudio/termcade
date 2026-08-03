@@ -113,11 +113,18 @@ The same works from the command line:
 ```sh
 termcade signup                          # create an account (or: termcade login)
 termcade add aviorstudio/brickough       # add straight from the marketplace
-termcade add aviorstudio/brickough@0.0.1 # or pin a version
 termcade add <file-or-url>.tcade         # or from a package you have (also signed in)
 termcade list                            # what's here
 termcade remove author/slug              # take one off (updates your library too)
 ```
+
+There is no way to install an older version, and that is deliberate. A game
+is not a dependency — nothing builds against one — so the reasons package
+managers pin (reproducible builds, lockfiles, a transitive bump breaking you)
+do not apply. `add` gives you what the author currently ships. The one thing
+that does narrow the choice is the ABI: the registry picks the newest release
+your arcade can actually run, so a game that has moved on to a later ABI tells
+you to update termcade instead of handing you a package the host would refuse.
 
 The registry defaults to local dev (`http://127.0.0.1:8080`, the termcade-be
 stack) and will point at `https://api.termca.de` once that is deployed.
@@ -130,10 +137,16 @@ TERMCADE_REGISTRY=http://127.0.0.1:8080 termcade add you/mygame
 
 **The registry stores no packages.** It is an index: a game's releases live on
 its GitHub releases, and the registry records where each one is and what it
-hashed to when the registry fetched and validated it. `termcade add` asks the
-registry where a version lives, downloads it from GitHub, and refuses to
-install anything whose sha256 does not match what the registry recorded — so a
-release asset swapped after publishing fails rather than reaching a player.
+hashed to when it fetched and validated them. Publishing is open source only
+for now — the registry checks that a repository is publicly visible before it
+will serve anything from it.
+
+Packages come back through the API rather than from GitHub directly. That is
+what lets an install require an account and lets the arcade and the app share
+one path. `termcade add` asks the registry which release to install, streams
+it from the registry, and refuses to install anything whose sha256 does not
+match what the registry recorded — so a release asset swapped after publishing
+fails rather than reaching a player.
 
 Installed games are WebAssembly modules that run sandboxed (no filesystem, no
 network) under [wazero](https://wazero.io). A broken install shows up dimmed
