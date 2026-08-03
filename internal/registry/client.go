@@ -424,6 +424,20 @@ func (c *Client) Org(name string) (Org, error) {
 	return out, c.do(http.MethodGet, "/v1/orgs/"+url.PathEscape(name), nil, &out)
 }
 
+// Member is one person in a studio. Email is present only to members: the
+// public org page reports roles without addresses.
+type Member struct {
+	Email string `json:"email,omitempty"`
+	Admin bool   `json:"admin"`
+}
+
+// Members lists who is in a studio. Membership is enough to read it —
+// administering is what changing it needs.
+func (c *Client) Members(org string) ([]Member, error) {
+	var out []Member
+	return out, c.do(http.MethodGet, "/v1/orgs/"+url.PathEscape(org)+"/members", nil, &out)
+}
+
 // AddMember adds somebody to a studio, or changes whether they administer it.
 func (c *Client) AddMember(org, email string, admin bool) error {
 	body := map[string]any{"email": email, "admin": admin}
