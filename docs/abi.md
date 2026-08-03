@@ -18,6 +18,11 @@ Instantiation runs `_initialize` (package initializers), never `main`.
   memory. The HUD pointer is valid until the next guest call; the pixel
   buffer pointer must stay valid for the instance's lifetime.
 - The host calls exports one at a time from one goroutine; no reentrancy.
+- **`termcade_init` comes first.** It is what constructs the game, so every
+  other export except `termcade_abi` traps until it has run — a guest written
+  in Go dereferences a nil game and takes the instance down. The arcade calls
+  `termcade_abi`, then `termcade_init`, then `termcade_playfield`, and any
+  other host must do the same.
 - Per-call budgets: 5s for setup calls, 500ms per frame call. A call that
   exceeds its budget kills the instance.
 
