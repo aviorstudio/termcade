@@ -21,9 +21,8 @@ const usage = `termcade — an arcade in your terminal
 
 usage:
   termcade                     play (marketplace included — press m)
-  termcade add <game>          add a game: author/slug from the marketplace
-                               (pin a version with @1.2.3), or a .tcade file
-                               or URL
+  termcade add <game>          add a game: author/slug from the marketplace,
+                               or a .tcade file or URL (needs an account)
   termcade remove <id>         remove an added game (id is author/slug)
   termcade list                list the games in your arcade
 
@@ -97,6 +96,15 @@ func cmdAdd(args []string) error {
 	}
 	src := args[0]
 
+	// Pinning is gone. Someone with the old spelling in their fingers or in a
+	// script should be told that, not handed a missing-file error for what is
+	// obviously a marketplace id. Before the account check, because this is
+	// the command being wrong rather than the caller being anonymous — being
+	// told to sign in and then told the syntax changed is two trips.
+	if id, _, pinned := strings.Cut(src, "@"); pinned && gameIDRe.MatchString(id) {
+		return fmt.Errorf("versions cannot be pinned — `termcade add %s` installs what %s currently ships", id, id)
+	}
+
 	session, err := registry.LoadSession()
 	if err != nil {
 		return err
@@ -108,11 +116,9 @@ func cmdAdd(args []string) error {
 		return fmt.Errorf("installing a game requires an account — run `termcade login` (or `termcade signup`)")
 	}
 
-	// Marketplace id (optionally pinned, author/slug@1.2.3) → fetch through
-	// the registry and sync the library.
-	id, version, _ := strings.Cut(src, "@")
-	if _, statErr := os.Stat(src); gameIDRe.MatchString(id) && statErr != nil {
-		return addFromRegistry(session, id, version)
+	// Marketplace id → fetch through the registry and sync the library.
+	if _, statErr := os.Stat(src); gameIDRe.MatchString(src) && statErr != nil {
+		return addFromRegistry(session, src)
 	}
 
 	var raw []byte
@@ -133,18 +139,14 @@ func cmdAdd(args []string) error {
 
 // addFromRegistry installs a marketplace id. The session is never nil: cmdAdd
 // turns a signed-out install away before it gets here.
-func addFromRegistry(session *registry.Session, id, version string) error {
+func addFromRegistry(session *registry.Session, id string) error {
 	author, slug, _ := strings.Cut(id, "/")
 	client := registry.New(registry.URL(session), session.Token)
 
-	resolved, err := client.Resolve(author, slug, version)
+	path, err := client.Download(author, slug)
 	if errors.Is(err, registry.ErrLoginRequired) {
 		return fmt.Errorf("your session has expired — run `termcade login`")
 	}
-	if err != nil {
-		return err
-	}
-	path, err := client.Fetch(resolved, slug)
 	if err != nil {
 		return err
 	}
