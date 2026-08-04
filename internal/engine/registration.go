@@ -23,4 +23,9 @@ type Registration struct {
 	// Installed marks a game loaded from the games directory rather than
 	// compiled into the arcade.
 	Installed bool
+	// Version is the package version from this game's manifest. It is not on
+	// sdk.Info because a guest has no business knowing which build of itself is
+	// running; the arcade needs it to report a run and to notice that the
+	// marketplace has moved on.
+	Version string
 }

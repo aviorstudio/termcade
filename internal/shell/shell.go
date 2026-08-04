@@ -85,6 +85,10 @@ type Model struct {
 	notice   string // menu-level message, e.g. a game that failed to load
 	crash    string // what the crash screen shows
 	mp       *Marketplace
+	// latest is the newest published version of each game, by id, as of the
+	// last sync or marketplace load. Empty until one has happened, which is
+	// why nothing claims an update is available before then.
+	latest   map[string]string
 	market   marketState
 	auth     authState
 	libIdx   int
@@ -100,7 +104,11 @@ func New(games []engine.Registration, st *scores.Store, shape sdk.CellShape, mp 
 	return Model{games: games, scores: st, shape: shape, mp: mp}
 }
 
-func (m Model) Init() tea.Cmd { return nil }
+// Init syncs once at startup, which is where an arcade that was played offline
+// catches up and where one on a new machine learns what the account already
+// knows. It runs off the UI loop like every other marketplace call, so a slow
+// or absent network delays nothing.
+func (m Model) Init() tea.Cmd { return m.syncCmd() }
 
 func (m Model) tick() tea.Cmd {
 	gen := m.tickGen
@@ -177,9 +185,15 @@ func (m Model) updateTick(msg tickMsg) (tea.Model, tea.Cmd) {
 			return mm, nil
 		}
 		if status == sdk.StatusGameOver {
-			m.newHigh = m.scores.Submit(m.game.Info().ID, m.game.Score())
+			// Recorded, not merely scored: this also queues the run for the
+			// account, which is what carries the same arcade to another
+			// machine. It queues signed out too — signing in later sends it.
+			m.newHigh = m.scores.Record(
+				m.game.Info().ID, m.game.Score(), m.games[m.gameIdx].Version, true)
 			m.screen = screenGameOver
-			return m, saveScores(m.scores) // persisted off the tick path; also saved on quit
+			// Saved off the tick path, and synced after it; neither may stall
+			// the loop the player is still looking at.
+			return m, tea.Batch(saveScores(m.scores), m.syncCmd())
 		}
 	}
 	if stepped {

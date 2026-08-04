@@ -375,6 +375,60 @@ func (c *Client) Library() ([]Game, error) {
 	return games, c.do(http.MethodGet, "/v1/library", nil, &games)
 }
 
+// Activity is what the account has done with one game, wherever it did it.
+//
+// It is a personal record and not a score anybody is ranked by: the registry
+// stores what a client reported about a game it ran in its own sandbox, and
+// cannot check any of it.
+type Activity struct {
+	ID           string `json:"id"` // "author/slug"
+	PersonalBest int    `json:"personal_best"`
+	Plays        int    `json:"plays"`
+	LastPlayed   string `json:"last_played,omitempty"`  // RFC 3339
+	LastVersion  string `json:"last_version,omitempty"` // package version of the newest play
+	LastComplete string `json:"last_completed,omitempty"`
+}
+
+// PlayedAt parses LastPlayed, zero if there is none or it is unreadable. A
+// timestamp the arcade cannot read is not worth failing a sync over.
+func (a Activity) PlayedAt() time.Time {
+	parsed, err := time.Parse(time.RFC3339, a.LastPlayed)
+	if err != nil {
+		return time.Time{}
+	}
+	return parsed
+}
+
+// Activity lists everything this account has played. It is not filtered to the
+// library: removing a game does not erase its history, and a machine syncing
+// for the first time wants all of it.
+func (c *Client) Activity() ([]Activity, error) {
+	var out []Activity
+	return out, c.do(http.MethodGet, "/v1/activity", nil, &out)
+}
+
+// Run is one finished run, as this arcade reports it.
+type Run struct {
+	// Run identifies the run rather than the request. Reuse it for every
+	// attempt to deliver one run, or the registry counts each attempt as
+	// another play.
+	Run       string `json:"run"`
+	Score     int    `json:"score"`
+	PlayedAt  string `json:"played_at,omitempty"` // RFC 3339
+	Completed bool   `json:"completed"`
+	Version   string `json:"version,omitempty"`
+}
+
+// SubmitRun records a run against the account and returns the merged record.
+//
+// Safe to retry: every field the registry stores is merged with max(), so a
+// submission that arrives twice, out of order, or a week after the fact cannot
+// lower what is already there.
+func (c *Client) SubmitRun(author, slug string, run Run) (Activity, error) {
+	var out Activity
+	return out, c.do(http.MethodPost, "/v1/activity/"+author+"/"+slug, run, &out)
+}
+
 // Key is a publish credential. Token is set only by CreateKey, in the one
 // response that carries it.
 type Key struct {

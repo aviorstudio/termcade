@@ -32,6 +32,18 @@ type Marketplace struct {
 	SignOut func() error
 	// Reload re-discovers installed games after an install/remove.
 	Reload func() []engine.Registration
+	// Sync flushes queued runs to the account, folds the account's record back
+	// into the local one, and reports the newest published version of each
+	// game so the library can say which installs have fallen behind.
+	//
+	// The notice is what to show, or "" for the ordinary case where nothing
+	// happened and nobody needs telling.
+	//
+	// It returns no error on purpose. Being signed out, being offline, and
+	// having nothing to send are all the normal state of an arcade that works
+	// without an account — none of them is a failure worth interrupting
+	// somebody over, and the queue survives all three.
+	Sync func() (notice string, latest map[string]string)
 }
 
 type marketLoadedMsg struct {
@@ -46,6 +58,13 @@ type marketOpMsg struct {
 }
 
 type authDoneMsg struct{ err error }
+
+// syncedMsg carries whatever a sync wants said, which is usually nothing, and
+// what the marketplace currently publishes.
+type syncedMsg struct {
+	notice string
+	latest map[string]string
+}
 
 type marketState struct {
 	games  []MarketGame
@@ -106,6 +125,20 @@ func (m Model) removeCmd(id string) tea.Cmd {
 	}
 }
 
+// syncCmd runs a sync off the UI loop. A nil Marketplace or a nil Sync hook
+// yields no command at all, so an arcade built without one is not paying for a
+// goroutine per game over.
+func (m Model) syncCmd() tea.Cmd {
+	if m.mp == nil || m.mp.Sync == nil {
+		return nil
+	}
+	mp := m.mp
+	return func() tea.Msg {
+		notice, latest := mp.Sync()
+		return syncedMsg{notice: notice, latest: latest}
+	}
+}
+
 func (m Model) authCmd(signup bool, username, email, password string) tea.Cmd {
 	mp := m.mp
 	return func() tea.Msg {
@@ -114,6 +147,18 @@ func (m Model) authCmd(signup bool, username, email, password string) tea.Cmd {
 		}
 		return authDoneMsg{err: mp.SignIn(email, password)}
 	}
+}
+
+// latestVersions is what the marketplace currently publishes, by game id.
+// Games with no release are left out — there is no version to fall behind.
+func latestVersions(games []MarketGame) map[string]string {
+	out := make(map[string]string, len(games))
+	for _, g := range games {
+		if g.HasPackage && g.Version != "" {
+			out[g.ID] = g.Version
+		}
+	}
+	return out
 }
 
 // installedIDs is derived from the menu's registrations, so marketplace
@@ -141,6 +186,10 @@ func (m Model) updateMarketMsg(msg tea.Msg) (Model, tea.Cmd, bool) {
 			return m, nil, true
 		}
 		m.market.games = msg.games
+		// The catalog is the same answer a sync fetches, so reading it here
+		// keeps the library's update markers current for a player who browsed
+		// rather than one who waited for a sync.
+		m.latest = latestVersions(msg.games)
 		if m.market.idx >= len(msg.games) {
 			m.market.idx = 0
 		}
@@ -171,6 +220,20 @@ func (m Model) updateMarketMsg(msg tea.Msg) (Model, tea.Cmd, bool) {
 		}
 		m.screen = screenMarket
 		m.market.notice = "signed in"
+		// The moment an account exists is the moment everything played
+		// without one has somewhere to go.
+		return m, m.syncCmd(), true
+	case syncedMsg:
+		if len(msg.latest) > 0 {
+			m.latest = msg.latest
+		}
+		// Silence is the common case and is left alone: overwriting a notice
+		// the player is reading with nothing would be worse than saying
+		// nothing.
+		if msg.notice != "" {
+			m.notice = msg.notice
+			m.market.notice = msg.notice
+		}
 		return m, nil, true
 	}
 	return m, nil, false

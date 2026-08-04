@@ -8,13 +8,14 @@ import (
 	"github.com/aviorstudio/termcade/internal/engine"
 	"github.com/aviorstudio/termcade/internal/plugin"
 	"github.com/aviorstudio/termcade/internal/registry"
+	"github.com/aviorstudio/termcade/internal/scores"
 	"github.com/aviorstudio/termcade/internal/shell"
 )
 
 // newMarketplace wires the arcade's marketplace screens to the registry and
 // the local install machinery. Every hook is TUI-safe: no printing, errors
 // returned for the shell to display.
-func newMarketplace(rt *plugin.Runtime) *shell.Marketplace {
+func newMarketplace(rt *plugin.Runtime, st *scores.Store) *shell.Marketplace {
 	anonClient := func() *registry.Client {
 		session, _ := registry.LoadSession()
 		token := ""
@@ -119,5 +120,43 @@ func newMarketplace(rt *plugin.Runtime) *shell.Marketplace {
 
 		SignOut: registry.ClearSession,
 		Reload:  reload,
+
+		// Sync is the whole of continuity from the shell's side: queued runs
+		// out, the account's record in, and the catalog's versions back so the
+		// library can say what has moved on.
+		//
+		// Nothing here reports a failure. An arcade with no account and no
+		// network is a supported way to use this, not an error state, and the
+		// catalog is fetched separately from the account half so being signed
+		// out still gets update markers.
+		Sync: func() (string, map[string]string) {
+			sent, err := syncActivity(st)
+			if err == nil && sent > 0 {
+				// Only worth the disk write when something actually changed.
+				st.Save()
+			}
+			return syncMessage(sent, err), latestVersions()
+		},
 	}
+}
+
+// latestVersions asks the catalog what each game currently publishes. It is
+// anonymous — browsing always is — so an arcade nobody has signed into still
+// learns that its copy of a game is behind.
+//
+// A failure is an empty map rather than an error: not knowing means saying
+// nothing, which is what the library does with an absent entry.
+func latestVersions() map[string]string {
+	session, _ := registry.LoadSession()
+	games, err := registry.New(registry.URL(session), "").Games()
+	if err != nil {
+		return nil
+	}
+	out := make(map[string]string, len(games))
+	for _, g := range games {
+		if g.HasPackage && g.Version != "" {
+			out[g.ID] = g.Version
+		}
+	}
+	return out
 }
