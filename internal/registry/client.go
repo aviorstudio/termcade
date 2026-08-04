@@ -91,6 +91,10 @@ type Game struct {
 	Height      int    `json:"height"`
 	HasPackage  bool   `json:"has_package"`
 	SHA256      string `json:"sha256"`
+	// RFC 3339. When the game entered the catalog, and when its newest release
+	// was published; the second is absent on a game that has none.
+	CreatedAt  string `json:"created_at,omitempty"`
+	ReleasedAt string `json:"released_at,omitempty"`
 }
 
 // Resolved is which release to install and what it must hash to. The registry
@@ -205,9 +209,88 @@ func (c *Client) do(method, path string, body, out any) error {
 	return json.NewDecoder(resp.Body).Decode(out)
 }
 
+// CatalogPage is one page of the marketplace and the cursor that continues it.
+//
+// Next empty is the end. A SHORT PAGE IS NOT: the registry applies its
+// compatibility filter after reading a page, so a page can hold fewer games
+// than asked for while the catalog continues. Stopping on a short page shows a
+// truncated marketplace with nothing to say anything is missing.
+type CatalogPage struct {
+	Games []Game `json:"games"`
+	Next  string `json:"next,omitempty"`
+}
+
+// CatalogQuery narrows a catalog request. The zero value asks for the first
+// page of everything.
+type CatalogQuery struct {
+	Cursor string
+	// Limit is 1-200; zero lets the registry choose.
+	Limit int
+	// Search matches a game's name, id or description.
+	Search string
+	// ABI restricts to games this arcade can run. Set by Games(); the registry
+	// treats zero as "do not filter".
+	ABI  int
+	Sort string // "slug" (default) or "newest"
+}
+
+func (q CatalogQuery) values() url.Values {
+	v := url.Values{}
+	if q.Cursor != "" {
+		v.Set("cursor", q.Cursor)
+	}
+	if q.Limit > 0 {
+		v.Set("limit", strconv.Itoa(q.Limit))
+	}
+	if q.Search != "" {
+		v.Set("q", q.Search)
+	}
+	if q.ABI > 0 {
+		v.Set("abi", strconv.Itoa(q.ABI))
+	}
+	if q.Sort != "" {
+		v.Set("sort", q.Sort)
+	}
+	return v
+}
+
+// CatalogPage fetches one page of the marketplace.
+func (c *Client) CatalogPage(q CatalogQuery) (CatalogPage, error) {
+	path := "/v1/games"
+	if encoded := q.values().Encode(); encoded != "" {
+		path += "?" + encoded
+	}
+	var page CatalogPage
+	return page, c.do(http.MethodGet, path, nil, &page)
+}
+
+// maxCatalogPages bounds how far Games will walk. The marketplace is a screen
+// somebody scrolls, not an index anybody mirrors; at the registry's ceiling of
+// 200 a page this is four thousand games, and a limit that is reached returns
+// what it has rather than failing — a marketplace showing four thousand beats
+// one showing an error.
+const maxCatalogPages = 20
+
+// Games lists the marketplace, following cursors to the end.
+//
+// The catalog is paged, so this is several requests rather than one. It asks
+// for games this arcade can run: a marketplace full of entries that refuse to
+// install is worse than a shorter one.
 func (c *Client) Games() ([]Game, error) {
-	var games []Game
-	return games, c.do(http.MethodGet, "/v1/games", nil, &games)
+	var all []Game
+	query := CatalogQuery{ABI: sdk.ABIVersion}
+	for range maxCatalogPages {
+		page, err := c.CatalogPage(query)
+		if err != nil {
+			return nil, err
+		}
+		all = append(all, page.Games...)
+		if page.Next == "" {
+			return all, nil
+		}
+		query.Cursor = page.Next
+	}
+	return all, nil
 }
 
 // Resolve asks the registry which release to install: the newest one this
