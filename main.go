@@ -66,7 +66,7 @@ func main() {
 	defer rt.Close()
 	games := discoverGames(rt)
 
-	p := tea.NewProgram(shell.New(games, st, shape, newMarketplace(rt)))
+	p := tea.NewProgram(shell.New(games, st, shape, newMarketplace(rt, st)))
 	if _, err := p.Run(); err != nil {
 		fmt.Fprintln(os.Stderr, "termcade:", err)
 		os.Exit(1)

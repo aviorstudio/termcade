@@ -5,10 +5,38 @@ import (
 	"strings"
 
 	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
+
+	"github.com/aviorstudio/termcade/internal/engine"
 )
+
+// updateStyle marks a game the marketplace has moved past. Green rather than
+// the notice yellow: an update is available, not a problem.
+var updateStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("#4fc964"))
 
 // The library is every game in the arcade — builtins and installed — with
 // broken installs listed dimmed so the player sees why they are missing.
+
+// updateAvailable reports the newer version the marketplace publishes for an
+// installed game, if there is one.
+//
+// It compares the version in the package's own manifest with the catalog's,
+// and says nothing at all when either is unknown: a game whose manifest omits
+// a version, or a catalog nothing has loaded yet, is not evidence that an
+// update exists. Inequality rather than ordering, because a player running
+// something newer than the marketplace has is a developer, and telling them to
+// "update" to their own older release would be wrong in the other direction —
+// so the marker names the version rather than commanding anything.
+func (m Model) updateAvailable(g engine.Registration) (string, bool) {
+	if g.Err != nil || g.Version == "" {
+		return "", false
+	}
+	newer, ok := m.latest[g.Info.ID]
+	if !ok || newer == "" || newer == g.Version {
+		return "", false
+	}
+	return newer, true
+}
 
 func (m Model) updateLibraryKey(key string) (tea.Model, tea.Cmd) {
 	switch key {
@@ -59,6 +87,9 @@ func (m Model) viewLibrary() string {
 		default:
 			if high := m.scores.High(g.Info.ID); high > 0 {
 				line += dimStyle.Render("  ··· high " + strconv.Itoa(high))
+			}
+			if newer, ok := m.updateAvailable(g); ok {
+				line += updateStyle.Render("  ··· v" + newer + " available")
 			}
 			if i == m.libIdx {
 				b.WriteString(selectedStyle.Render("▸" + line[1:]))

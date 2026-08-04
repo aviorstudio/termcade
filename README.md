@@ -91,7 +91,8 @@ the auto-repeat heuristic.
 | p (index/library) | cycle pixel style (incl. ASCII art) |
 | q | quit (from menu) |
 
-High scores persist to `~/.config/termcade/scores.json`.
+High scores persist to `~/.config/termcade/scores.json`, and are yours whether
+or not you have an account — see [Your history](#your-history).
 
 ## The marketplace
 
@@ -130,6 +131,28 @@ termcade keys new ci <username>          # a key for a release workflow
 termcade list                            # what's here
 termcade remove author/slug              # take one off (updates your library too)
 ```
+
+## Your history
+
+Your high scores live in `scores.json` and always have. The arcade plays with
+no account and no network, and a score set that way is not waiting on either.
+
+What an account adds is that the same history follows you. Every finished run
+is recorded locally and queued; the queue drains when there is a session and a
+network, which may be now, may be after you sign in, and may be next week. On
+another machine, signing in brings the account's side down. Both directions
+only ever raise a value — a high set here and a higher one set there both
+survive — so the two can disagree, sync in either order, or never sync, and
+the worst outcome is that a score stays where it was set.
+
+The library also marks a game the marketplace has moved past, comparing the
+version in the installed package's own manifest with what the catalog
+publishes. `termcade add` again is what updates it.
+
+**These are personal records, not a leaderboard.** A score comes from a game
+running in your own sandbox, and nothing on the other end can check it. It is
+your history, shown back to you; ranking anybody by it would need evidence
+that does not exist yet, so nothing here pretends to.
 
 There is no way to install an older version, and that is deliberate. A game
 is not a dependency — nothing builds against one — so the reasons package

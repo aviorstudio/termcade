@@ -78,7 +78,8 @@ func load(rt *Runtime, dir string) (engine.Registration, error) {
 
 	info := m.Info()
 	return engine.Registration{
-		Info: info,
+		Info:    info,
+		Version: m.Game.Version,
 		New: func(shape sdk.CellShape) (sdk.Game, error) {
 			wasm, err := os.ReadFile(wasmPath)
 			if err != nil {

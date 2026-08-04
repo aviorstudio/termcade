@@ -704,3 +704,177 @@ func TestPixelToggle(t *testing.T) {
 		t.Fatalf("canvas not rebuilt: shape = %q", m.canvas.Shape().Name)
 	}
 }
+
+// -------------------------------------------------------- play continuity --
+
+// syncingMarket is a Marketplace whose only interesting hook is Sync.
+func syncingMarket(calls *int, notice string, latest map[string]string) *Marketplace {
+	signedIn := false
+	var installed []engine.Registration
+	mp := fakeMarket(&signedIn, &installed)
+	mp.Sync = func() (string, map[string]string) {
+		*calls++
+		return notice, latest
+	}
+	return mp
+}
+
+func newSyncShell(t *testing.T, mp *Marketplace, regs ...engine.Registration) Model {
+	t.Helper()
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	st, err := scores.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(regs) == 0 {
+		g := &fakeGame{}
+		regs = []engine.Registration{{
+			Info: g.Info(),
+			New:  func(sdk.CellShape) (sdk.Game, error) { return g, nil },
+		}}
+	}
+	m := New(regs, st, sdk.Quadrant, mp)
+	mm, _ := m.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
+	return mm.(Model)
+}
+
+// An arcade played offline catches up when it starts, not when somebody
+// remembers to ask it to.
+func TestInitSyncs(t *testing.T) {
+	calls := 0
+	m := newSyncShell(t, syncingMarket(&calls, "", nil))
+
+	cmd := m.Init()
+	if cmd == nil {
+		t.Fatal("Init issued no sync command")
+	}
+	cmd()
+	if calls != 1 {
+		t.Errorf("sync ran %d times at startup, want 1", calls)
+	}
+}
+
+// A shell with no marketplace has nothing to sync to, and must not go looking.
+func TestInitWithoutAMarketplaceDoesNothing(t *testing.T) {
+	m := newTestShell(t, &fakeGame{})
+	if m.Init() != nil {
+		t.Error("an arcade with no marketplace issued a sync")
+	}
+}
+
+func TestFinishingARunQueuesItAndSyncs(t *testing.T) {
+	calls := 0
+	g := &fakeGame{endAfter: 1, score: 42}
+	m := newSyncShell(t, syncingMarket(&calls, "", nil), engine.Registration{
+		Info:    g.Info(),
+		New:     func(sdk.CellShape) (sdk.Game, error) { return g, nil },
+		Version: "1.2.0",
+	})
+
+	m, _ = step(t, m, key("l"))     // library
+	m, _ = step(t, m, key("enter")) // start the game
+	m, cmd := tickNow(t, m)
+	if m.screen != screenGameOver {
+		t.Fatalf("screen = %v, want game over", m.screen)
+	}
+
+	pending := m.scores.Pending()
+	if len(pending) != 1 {
+		t.Fatalf("queued %d runs, want the one just played", len(pending))
+	}
+	if pending[0].Score != 42 || !pending[0].Completed {
+		t.Errorf("run recorded wrong: %+v", pending[0])
+	}
+	// The version comes off the registration, so the account learns which
+	// package produced the score.
+	if pending[0].Version != "1.2.0" {
+		t.Errorf("run version = %q, want the installed 1.2.0", pending[0].Version)
+	}
+
+	if cmd == nil {
+		t.Fatal("game over issued no command")
+	}
+	drain(t, m, cmd)
+	if calls != 1 {
+		t.Errorf("sync ran %d times after a run, want 1", calls)
+	}
+}
+
+// Signing in is the moment everything played without an account has somewhere
+// to go.
+func TestSigningInSyncs(t *testing.T) {
+	calls := 0
+	m := newSyncShell(t, syncingMarket(&calls, "", nil))
+
+	m.screen = screenAuth
+	m, cmd := step(t, m, authDoneMsg{})
+	if m.screen != screenMarket {
+		t.Fatalf("screen = %v after signing in", m.screen)
+	}
+	if cmd == nil {
+		t.Fatal("signing in issued no sync")
+	}
+	// Batched with the page-clear the route change adds, so it has to be run
+	// as a chain rather than called.
+	drain(t, m, cmd)
+	if calls != 1 {
+		t.Errorf("sync ran %d times after sign-in, want 1", calls)
+	}
+}
+
+func TestSyncNoticeReachesTheScreen(t *testing.T) {
+	calls := 0
+	m := newSyncShell(t, syncingMarket(&calls, "", nil))
+
+	m, _ = step(t, m, syncedMsg{notice: "2 runs synced to your account"})
+	if !strings.Contains(view(m), "2 runs synced") {
+		t.Errorf("sync notice not shown:\n%s", view(m))
+	}
+
+	// A quiet sync leaves a notice somebody may be reading alone.
+	m, _ = step(t, m, syncedMsg{})
+	if !strings.Contains(view(m), "2 runs synced") {
+		t.Errorf("a quiet sync erased the previous notice:\n%s", view(m))
+	}
+}
+
+func TestLibraryMarksAnOutdatedInstall(t *testing.T) {
+	calls := 0
+	g := &fakeGame{}
+	m := newSyncShell(t, syncingMarket(&calls, "", nil), engine.Registration{
+		Info:      g.Info(),
+		New:       func(sdk.CellShape) (sdk.Game, error) { return g, nil },
+		Version:   "1.0.0",
+		Installed: true,
+	})
+
+	// Nothing is claimed before a sync has said what the marketplace holds.
+	m, _ = step(t, m, key("l"))
+	if strings.Contains(view(m), "available") {
+		t.Errorf("an update was claimed before any catalog was loaded:\n%s", view(m))
+	}
+
+	m, _ = step(t, m, syncedMsg{latest: map[string]string{"fake": "2.0.0"}})
+	if !strings.Contains(view(m), "v2.0.0 available") {
+		t.Errorf("library does not mark the outdated install:\n%s", view(m))
+	}
+
+	// A game already on the newest version says nothing at all.
+	m, _ = step(t, m, syncedMsg{latest: map[string]string{"fake": "1.0.0"}})
+	if strings.Contains(view(m), "available") {
+		t.Errorf("a current install was marked as outdated:\n%s", view(m))
+	}
+}
+
+// A game whose manifest carries no version cannot be compared, and guessing
+// would put an update marker on every game that omits one.
+func TestAVersionlessGameIsNeverMarkedOutdated(t *testing.T) {
+	calls := 0
+	m := newSyncShell(t, syncingMarket(&calls, "", nil))
+
+	m, _ = step(t, m, syncedMsg{latest: map[string]string{"fake": "2.0.0"}})
+	m, _ = step(t, m, key("l"))
+	if strings.Contains(view(m), "available") {
+		t.Errorf("a game with no version was marked outdated:\n%s", view(m))
+	}
+}
