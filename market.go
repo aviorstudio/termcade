@@ -62,6 +62,11 @@ func newMarketplace(rt *plugin.Runtime) *shell.Marketplace {
 				return fmt.Errorf("bad game id %q", id)
 			}
 			client := registry.New(registry.URL(session), session.Token)
+			// Account state is the source of truth; the local package is a cache
+			// which sync can restore if this download is interrupted.
+			if err := client.LibraryAdd(author, slug); err != nil {
+				return err
+			}
 			path, err := client.Download(author, slug)
 			if err != nil {
 				return err
@@ -74,9 +79,6 @@ func newMarketplace(rt *plugin.Runtime) *shell.Marketplace {
 			if _, _, err := installPackageBytes(raw); err != nil {
 				return err
 			}
-			// Library sync is best-effort; the game is already installed
-			// locally either way.
-			_ = client.LibraryAdd(author, slug)
 			return nil
 		},
 
@@ -85,11 +87,10 @@ func newMarketplace(rt *plugin.Runtime) *shell.Marketplace {
 			if !ok {
 				return fmt.Errorf("bad game id %q", id)
 			}
-			if err := removeLocal(author, slug); err != nil {
+			if err := syncLibraryRemove(author, slug); err != nil {
 				return err
 			}
-			_ = syncLibraryRemove(author, slug)
-			return nil
+			return removeLocal(author, slug)
 		},
 
 		Account: func() (string, bool) {
