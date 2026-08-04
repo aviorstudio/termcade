@@ -141,6 +141,22 @@ func TestDownloadReportsAnUnauthorizedResponse(t *testing.T) {
 	}
 }
 
+func TestNotFoundKeepsItsMessageAndCanBeClassified(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusNotFound)
+		w.Write([]byte(`{"message":"not in your library"}`))
+	}))
+	t.Cleanup(srv.Close)
+
+	err := New(srv.URL, "session").LibraryRemove("aviorstudio", "tetris")
+	if !errors.Is(err, ErrNotFound) {
+		t.Fatalf("error = %v, want ErrNotFound", err)
+	}
+	if err.Error() != "not in your library" {
+		t.Fatalf("message = %q", err)
+	}
+}
+
 // Resolve sends the ABI so the registry can pick a release this binary can
 // run, and sends no version at all — pinning is gone.
 func TestResolveSendsTheABIAndNoVersion(t *testing.T) {

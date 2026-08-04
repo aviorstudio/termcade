@@ -121,7 +121,7 @@ The same works from the command line:
 ```sh
 termcade signup                          # create an account + claim a handle
 termcade add aviorstudio/brickough       # add straight from the marketplace
-termcade add <file-or-url>.tcade         # or from a package you have (also signed in)
+termcade dev install <file>.tcade        # install a local build while developing
 termcade whoami                          # who you are, and what you publish as
 termcade username <name>                 # claim, rename, or check one is free
 termcade org new aviorstudio             # a studio to publish under

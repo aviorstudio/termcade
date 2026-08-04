@@ -4,8 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io"
-	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -21,8 +19,8 @@ const usage = `termcade — an arcade in your terminal
 
 usage:
   termcade                     play (marketplace included — press m)
-  termcade add <game>          add a game: author/slug from the marketplace,
-                               or a .tcade file or URL (needs an account)
+  termcade add <author/slug>   add a marketplace game to your account and
+                               install it on this machine
   termcade remove <id>         remove an added game (id is author/slug)
   termcade list                list the games in your arcade
   termcade sync                install everything on your account that is
@@ -47,8 +45,9 @@ usage:
 
   termcade dev new <id> [dir]  start your own game (id is author/slug)
   termcade dev build [dir]     build a game directory into a .tcade package
+  termcade dev install <file>  install a local .tcade while developing
 
-This arcade is also the whole dev kit: dev new, hack, dev build, add,
+This arcade is also the whole dev kit: dev new, hack, dev build, dev install,
 play. See docs/sdk.md to get started.
 `
 
@@ -92,8 +91,10 @@ func runCommand(args []string) bool {
 			err = cmdDevBuild(args[2:])
 		case len(args) >= 2 && args[1] == "new":
 			err = cmdDevNew(args[2:])
+		case len(args) >= 2 && args[1] == "install":
+			err = cmdDevInstall(args[2:])
 		default:
-			err = fmt.Errorf("unknown dev subcommand; try: termcade dev new <author/slug> · termcade dev build [dir]")
+			err = fmt.Errorf("unknown dev subcommand; try: termcade dev new <author/slug> · termcade dev build [dir] · termcade dev install <file>")
 		}
 	case "version", "-v", "--version":
 		fmt.Println("termcade", resolveVersion())
@@ -120,59 +121,37 @@ var slugOnlyRe = regexp.MustCompile(`^[a-z0-9][a-z0-9-]*$`)
 
 func cmdAdd(args []string) error {
 	if len(args) != 1 {
-		return fmt.Errorf("usage: termcade add <author/slug | file | url>")
+		return fmt.Errorf("usage: termcade add <author/slug>")
 	}
-	src := args[0]
+	id := args[0]
 
 	// Pinning is gone. Someone with the old spelling in their fingers or in a
 	// script should be told that, not handed a missing-file error for what is
 	// obviously a marketplace id. Before the account check, because this is
 	// the command being wrong rather than the caller being anonymous — being
 	// told to sign in and then told the syntax changed is two trips.
-	if id, _, pinned := strings.Cut(src, "@"); pinned && gameIDRe.MatchString(id) {
-		return fmt.Errorf("versions cannot be pinned — `termcade add %s` installs what %s currently ships", id, id)
+	if bare, _, pinned := strings.Cut(id, "@"); pinned && gameIDRe.MatchString(bare) {
+		return fmt.Errorf("versions cannot be pinned — `termcade add %s` installs what %s currently ships", bare, bare)
 	}
-
-	// Forgetting the author is the likeliest way to get this wrong, and
-	// "open asteroid: no such file or directory" answers a question about the
-	// filesystem that nobody asked. Anything with a slash, a scheme, or a
-	// .tcade on the end meant a file or a URL and is left alone.
-	if slugOnlyRe.MatchString(src) {
-		if _, statErr := os.Stat(src); statErr != nil {
-			return fmt.Errorf("%q is missing an author — marketplace ids look like author/slug, e.g. aviorstudio/%s", src, src)
-		}
+	if slugOnlyRe.MatchString(id) {
+		return fmt.Errorf("%q is missing an author — marketplace ids look like author/slug, e.g. aviorstudio/%s", id, id)
+	}
+	if !gameIDRe.MatchString(id) {
+		return fmt.Errorf("add installs marketplace ids only; use `termcade dev install <file>` for a local package")
 	}
 
 	session, err := registry.LoadSession()
 	if err != nil {
 		return err
 	}
-	// Every install goes through an account, whatever the source. The bundled
-	// starter pack is what a signed-out arcade has to play; adding to it is
-	// the thing an account is for.
+	// Every marketplace install goes through an account. The bundled starter
+	// pack is what a signed-out arcade has to play; local author iteration is
+	// the explicit `dev install` path above this product boundary.
 	if session == nil {
 		return fmt.Errorf("installing a game requires an account — run `termcade login` (or `termcade signup`)")
 	}
 
-	// Marketplace id → fetch through the registry and sync the library.
-	if _, statErr := os.Stat(src); gameIDRe.MatchString(src) && statErr != nil {
-		return addFromRegistry(session, src)
-	}
-
-	var raw []byte
-	if strings.Contains(src, "://") {
-		if !strings.HasPrefix(src, "https://") {
-			return fmt.Errorf("refusing to download over %s; games install code — use https",
-				strings.SplitN(src, "://", 2)[0])
-		}
-		raw, err = download(src)
-	} else {
-		raw, err = os.ReadFile(src)
-	}
-	if err != nil {
-		return err
-	}
-	return installPackage(raw)
+	return addFromRegistry(session, id)
 }
 
 // addFromRegistry installs a marketplace id. The session is never nil: cmdAdd
@@ -181,6 +160,12 @@ func addFromRegistry(session *registry.Session, id string) error {
 	author, slug, _ := strings.Cut(id, "/")
 	client := registry.New(registry.URL(session), session.Token)
 
+	// The account library is authoritative; the package on this machine is a
+	// cache of that choice. Record the choice first so a failed download is
+	// restored by the next sync rather than becoming an untracked install.
+	if err := client.LibraryAdd(author, slug); err != nil {
+		return err
+	}
 	path, err := client.Download(author, slug)
 	if errors.Is(err, registry.ErrLoginRequired) {
 		return fmt.Errorf("your session has expired — run `termcade login`")
@@ -197,11 +182,21 @@ func addFromRegistry(session *registry.Session, id string) error {
 	if err := installPackage(raw); err != nil {
 		return err
 	}
-	// Library sync is best-effort: the game is already installed locally.
-	if err := client.LibraryAdd(author, slug); err != nil {
-		fmt.Fprintf(os.Stderr, "warning: could not add %s to your library: %v\n", id, err)
-	}
 	return nil
+}
+
+// cmdDevInstall is the deliberate local escape hatch for an author iterating
+// on a package. Player installs stay behind the marketplace API; development
+// bytes never pretend to be account library state.
+func cmdDevInstall(args []string) error {
+	if len(args) != 1 {
+		return fmt.Errorf("usage: termcade dev install <file.tcade>")
+	}
+	raw, err := os.ReadFile(args[0])
+	if err != nil {
+		return err
+	}
+	return installPackage(raw)
 }
 
 // installPackageBytes validates and installs a .tcade without printing, so
@@ -243,18 +238,6 @@ func installPackage(raw []byte) error {
 	return nil
 }
 
-func download(url string) ([]byte, error) {
-	resp, err := http.Get(url)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("downloading %s: %s", url, resp.Status)
-	}
-	return io.ReadAll(io.LimitReader(resp.Body, 128<<20))
-}
-
 // removeLocal deletes an installed game's directory. Silent, TUI-safe.
 func removeLocal(author, slug string) error {
 	if author == "" || slug == "" ||
@@ -272,7 +255,10 @@ func removeLocal(author, slug string) error {
 	return os.RemoveAll(dir)
 }
 
-// syncLibraryRemove best-effort mirrors a removal to the signed-in library.
+// syncLibraryRemove records a removal in the authoritative account library.
+// A package absent from the library is a local/dev/starter package and is
+// still removable. Other failures stop the local mutation so clients do not
+// silently diverge from the account.
 func syncLibraryRemove(author, slug string) error {
 	session, err := registry.LoadSession()
 	if err != nil || session == nil {
@@ -280,9 +266,11 @@ func syncLibraryRemove(author, slug string) error {
 	}
 	client := registry.New(registry.URL(session), session.Token)
 	err = client.LibraryRemove(author, slug)
-	if err == nil || errors.Is(err, registry.ErrLoginRequired) ||
-		strings.Contains(err.Error(), "not in your library") {
+	if err == nil || errors.Is(err, registry.ErrNotFound) {
 		return nil
+	}
+	if errors.Is(err, registry.ErrLoginRequired) {
+		return fmt.Errorf("your session has expired — run `termcade login`")
 	}
 	return err
 }
@@ -295,13 +283,13 @@ func cmdRemove(args []string) error {
 	if !ok {
 		return fmt.Errorf("id must look like author/slug")
 	}
+	if err := syncLibraryRemove(author, slug); err != nil {
+		return err
+	}
 	if err := removeLocal(author, slug); err != nil {
 		return err
 	}
 	fmt.Printf("removed %s\n", args[0])
-	if err := syncLibraryRemove(author, slug); err != nil {
-		fmt.Fprintf(os.Stderr, "warning: could not update your library: %v\n", err)
-	}
 	return nil
 }
 

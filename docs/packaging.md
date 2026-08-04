@@ -48,8 +48,8 @@ mygame.tcade
 ## Installing
 
 ```sh
-termcade add mygame.tcade          # from a file
-termcade add https://…/mygame.tcade  # from a URL
+termcade dev install mygame.tcade # local author iteration
+termcade add you/mygame            # player install through the marketplace API
 termcade list
 termcade remove you/mygame
 ```

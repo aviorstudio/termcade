@@ -13,7 +13,7 @@ The arcade is the dev kit — scaffold a working game and play it:
 termcade dev new you/mygame
 cd mygame
 go mod tidy
-termcade dev build && termcade add build/mygame.tcade && termcade
+termcade dev build && termcade dev install build/mygame.tcade && termcade
 ```
 
 `dev new` generates a playable paddle-and-ball demo; edit `game.go` from
@@ -96,7 +96,7 @@ Add a `termcade.toml` (see [packaging.md](packaging.md)), then:
 
 ```sh
 termcade dev build          # → build/mygame.tcade
-termcade add build/mygame.tcade
+termcade dev install build/mygame.tcade
 termcade                    # your game is on the menu
 ```
 

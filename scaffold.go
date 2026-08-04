@@ -60,7 +60,7 @@ func cmdDevNew(args []string) error {
 next:
   cd %s
   go mod tidy     # see go.mod if you develop against a local termcade checkout
-  termcade dev build && termcade add build/%s.tcade && termcade
+  termcade dev build && termcade dev install build/%s.tcade && termcade
 `, dir, dir, slug)
 	return nil
 }
