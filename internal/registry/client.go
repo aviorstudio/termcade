@@ -43,6 +43,21 @@ const maxPackageSize = 64 << 20
 // ErrLoginRequired distinguishes "you need an account" from real failures.
 var ErrLoginRequired = errors.New("login required")
 
+// ErrNotFound lets callers distinguish an absent library row from a network
+// failure without replacing the API's useful human-readable message.
+var ErrNotFound = errors.New("not found")
+
+type responseError struct {
+	status  int
+	message string
+}
+
+func (e responseError) Error() string { return e.message }
+
+func (e responseError) Is(target error) bool {
+	return target == ErrNotFound && e.status == http.StatusNotFound
+}
+
 // ErrUnreachable is the marketplace not answering at all: no network, or
 // nothing listening where the registry is supposed to be.
 //
@@ -177,7 +192,7 @@ func (c *Client) do(method, path string, body, out any) error {
 		var msg apiMessage
 		raw, _ := io.ReadAll(io.LimitReader(resp.Body, 8<<10))
 		if json.Unmarshal(raw, &msg) == nil && msg.Message != "" {
-			return errors.New(msg.Message)
+			return responseError{status: resp.StatusCode, message: msg.Message}
 		}
 		if resp.StatusCode >= 500 {
 			return fmt.Errorf("the marketplace is having trouble (HTTP %d) — try again shortly", resp.StatusCode)
