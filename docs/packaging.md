@@ -89,23 +89,29 @@ Three consequences worth knowing:
 
 - **`version` must be plain semver** (`1.2.3`, optionally `v`-prefixed). The
   manifest itself only length-checks it, because the arcade never has to sort
-  versions. The registry does — pinning, "latest" and rollback all need an
-  order — so it is enforced at publish time rather than here.
+  versions. The registry does — picking the newest release an arcade can run
+  needs an order — so it is enforced at publish time rather than here.
 - **A version is published once.** Re-publishing `1.0.0` is a conflict, not an
   overwrite.
-- **The first publish under an author name claims that namespace.** Nobody
-  else can publish `you/*` afterwards.
+- **Publishing requires a handle you already control.** The author segment of
+  the manifest id must be your username (claimed at signup or with `termcade
+  username`) or an org you belong to (`termcade org new`). A publish under a
+  name nobody has claimed is refused, and nobody else can publish `you/*`.
 
 ## Installing from the marketplace
 
 ```sh
-termcade add you/mygame          # newest release
-termcade add you/mygame@1.0.0    # pinned
+termcade add you/mygame
 ```
 
-`add` asks the registry where that version lives, downloads it straight from
-GitHub, and checks the sha256 against the digest the registry recorded when it
-fetched and validated the package. A mismatch aborts the install: a release
-asset can be deleted and re-uploaded under the same tag, so the digest is what
-ties what arrives to what was actually reviewed. Nothing installs unverified,
-and the registry token is never sent to GitHub.
+There is no pinning — `termcade add you/mygame@1.0.0` is refused. `add` asks
+the registry to resolve the game, passing the ABI version this arcade speaks,
+and the registry answers with the newest release this binary can actually
+run.
+
+The package itself comes back through the registry, not from GitHub — that is
+what lets an install require an account. `add` checks the sha256 of what
+arrives against the digest the registry recorded when it fetched and
+validated the package. A mismatch aborts the install: a release asset can be
+deleted and re-uploaded under the same tag, so the digest is what ties what
+arrives to what was actually reviewed. Nothing installs unverified.

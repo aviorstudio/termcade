@@ -191,7 +191,7 @@ on the menu with the reason; it can never take the arcade down.
 
 The arcade you play with is also the whole dev kit — `termcade dev new
 you/mygame` scaffolds a playable game, `termcade dev build` packages it, and
-`termcade add` puts it on your own menu.
+`termcade dev install build/mygame.tcade` puts it on your own menu.
 
 To put it on everyone else's, attach the `.tcade` to a GitHub release and tell
 the marketplace where it is:
@@ -202,9 +202,11 @@ termcade publish https://github.com/you/mygame v1.0.0 mygame.tcade
 
 The registry fetches that asset once, validates it against the same manifest
 rules the arcade enforces, reads the game's identity and version out of the
-manifest inside it, and records its digest. Nothing you pass here asserts what
-the package is — only where it is. The first publish under an author name
-claims that namespace.
+manifest inside it, and records its digest. Nothing you pass here asserts
+what the package is — only where it is. The author segment of the id must be
+a handle you already control: your username, claimed at signup or with
+`termcade username`, or an org you belong to. Publishing under a name nobody
+has claimed is refused rather than minting it.
 
 A game is a Go package implementing `sdk.Game` — see
 [docs/sdk.md](docs/sdk.md) for the author quickstart,
