@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/BurntSushi/toml"
 )
@@ -44,7 +45,11 @@ func ReadPackage(raw []byte) (*Package, error) {
 }
 
 func readPackage(zr *zip.Reader) (*Package, error) {
-	manifestRaw, err := zipFile(zr, FileName, 1<<20)
+	manifestF, wasmF, err := rootEntries(zr)
+	if err != nil {
+		return nil, err
+	}
+	manifestRaw, err := readEntry(manifestF, 1<<20)
 	if err != nil {
 		return nil, err
 	}
@@ -52,7 +57,7 @@ func readPackage(zr *zip.Reader) (*Package, error) {
 	if err != nil {
 		return nil, err
 	}
-	wasm, err := zipFile(zr, WasmName, maxWasmSize)
+	wasm, err := readEntry(wasmF, maxWasmSize)
 	if err != nil {
 		return nil, err
 	}
@@ -62,26 +67,71 @@ func readPackage(zr *zip.Reader) (*Package, error) {
 	return &Package{Manifest: m, Wasm: wasm}, nil
 }
 
-func zipFile(zr *zip.Reader, name string, limit int64) ([]byte, error) {
+// rootEntries enforces the package contract: exactly one termcade.toml and
+// one game.wasm at the zip's root, and nothing else. A zip's central
+// directory may carry duplicate names, nested paths and directory entries,
+// and a .tcade comes from strangers, so each violation is its own explicit
+// rejection rather than a silently ignored entry.
+func rootEntries(zr *zip.Reader) (manifestF, wasmF *zip.File, err error) {
 	for _, f := range zr.File {
-		if f.Name != name {
-			continue
+		// zip's general-purpose flag bit 0 marks an encrypted entry. The
+		// reader cannot decrypt one, so reject it by name instead of
+		// letting it fail later as a read error or an empty file.
+		if f.Flags&0x1 != 0 {
+			return nil, nil, fmt.Errorf("package entry %q is encrypted", f.Name)
 		}
-		rc, err := f.Open()
-		if err != nil {
-			return nil, fmt.Errorf("reading %s: %w", name, err)
+		// A directory is also marked by external attributes, with no
+		// trailing slash required — so a name match is not enough. The two
+		// required entries must be regular files (FileInfo semantics, which
+		// cover the MS-DOS directory bit and Unix mode bits alike); any
+		// other type — directory, symlink, device — has no meaning in a
+		// two-file package.
+		if f.Name == FileName || f.Name == WasmName {
+			if !f.FileInfo().Mode().IsRegular() {
+				return nil, nil, fmt.Errorf("package entry %q is not a regular file", f.Name)
+			}
 		}
-		defer rc.Close()
-		raw, err := io.ReadAll(io.LimitReader(rc, limit+1))
-		if err != nil {
-			return nil, fmt.Errorf("reading %s: %w", name, err)
+		switch f.Name {
+		case FileName:
+			if manifestF != nil {
+				return nil, nil, fmt.Errorf("package has more than one %s", FileName)
+			}
+			manifestF = f
+		case WasmName:
+			if wasmF != nil {
+				return nil, nil, fmt.Errorf("package has more than one %s", WasmName)
+			}
+			wasmF = f
+		default:
+			if strings.Contains(f.Name, "/") {
+				return nil, nil, fmt.Errorf("package entry %q is not at the root: a .tcade contains only %s and %s", f.Name, FileName, WasmName)
+			}
+			return nil, nil, fmt.Errorf("unexpected package entry %q: a .tcade contains only %s and %s", f.Name, FileName, WasmName)
 		}
-		if int64(len(raw)) > limit {
-			return nil, fmt.Errorf("%s exceeds the %d byte limit", name, limit)
-		}
-		return raw, nil
 	}
-	return nil, fmt.Errorf("package has no %s at its root", name)
+	if manifestF == nil {
+		return nil, nil, fmt.Errorf("package has no %s at its root", FileName)
+	}
+	if wasmF == nil {
+		return nil, nil, fmt.Errorf("package has no %s at its root", WasmName)
+	}
+	return manifestF, wasmF, nil
+}
+
+func readEntry(f *zip.File, limit int64) ([]byte, error) {
+	rc, err := f.Open()
+	if err != nil {
+		return nil, fmt.Errorf("reading %s: %w", f.Name, err)
+	}
+	defer rc.Close()
+	raw, err := io.ReadAll(io.LimitReader(rc, limit+1))
+	if err != nil {
+		return nil, fmt.Errorf("reading %s: %w", f.Name, err)
+	}
+	if int64(len(raw)) > limit {
+		return nil, fmt.Errorf("%s exceeds the %d byte limit", f.Name, limit)
+	}
+	return raw, nil
 }
 
 // WritePackage zips a manifest and module into a .tcade at path.
