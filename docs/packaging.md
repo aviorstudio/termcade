@@ -44,9 +44,10 @@ mygame.tcade
 
 "Exactly" is enforced, not implied: a package carrying anything else — an
 extra file, a second `termcade.toml` or `game.wasm` (zip permits duplicate
-names), a nested or directory entry such as `assets/game.wasm`, or an
-encrypted entry — is rejected outright rather than having the extra bytes
-silently ignored. `termcade dev build [dir]` produces one at
+names), a nested or directory entry such as `assets/game.wasm`, a required
+name marked as anything but a regular file (zip also marks directories by
+external attributes, with no trailing slash needed), or an encrypted entry —
+is rejected outright rather than having the extra bytes silently ignored. `termcade dev build [dir]` produces one at
 `<dir>/build/<slug>.tcade` (it compiles `./cmd/wasm`, validates the module's
 exports, and zips it with the manifest).
 
