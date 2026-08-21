@@ -1,6 +1,8 @@
 package manifest
 
 import (
+	"archive/zip"
+	"bytes"
 	"os"
 	"path/filepath"
 	"strings"
@@ -100,6 +102,113 @@ func TestPackageRoundTrip(t *testing.T) {
 	// Reinstalling replaces cleanly.
 	if _, err := p.Install(gamesDir); err != nil {
 		t.Fatalf("reinstall: %v", err)
+	}
+}
+
+var goodWasm = []byte{0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00}
+
+type zipEntry struct {
+	name      string
+	body      []byte
+	encrypted bool // sets general-purpose flag bit 0 without encrypting
+}
+
+// rawZip builds a zip in memory with exactly the entries given, in order —
+// including duplicate names (legal in zip, rejected by the package contract)
+// and encrypted flags, neither of which WritePackage can produce.
+func rawZip(t *testing.T, entries ...zipEntry) []byte {
+	t.Helper()
+	var buf bytes.Buffer
+	zw := zip.NewWriter(&buf)
+	for _, e := range entries {
+		var w interface{ Write([]byte) (int, error) }
+		var err error
+		if e.encrypted {
+			fh := &zip.FileHeader{Name: e.name, Method: zip.Store}
+			fh.Flags |= 0x1
+			w, err = zw.CreateRaw(fh)
+		} else {
+			w, err = zw.Create(e.name)
+		}
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := w.Write(e.body); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := zw.Close(); err != nil {
+		t.Fatal(err)
+	}
+	return buf.Bytes()
+}
+
+// A .tcade holds exactly one termcade.toml and one game.wasm at its root and
+// nothing else; every deviation below must be rejected by name, never
+// silently ignored.
+func TestPackageEntryContract(t *testing.T) {
+	cases := map[string]struct {
+		entries []zipEntry
+		want    string // substring of the rejection message
+	}{
+		"extra root entry": {
+			entries: []zipEntry{{FileName, []byte(goodTOML), false}, {WasmName, goodWasm, false}, {"README.md", []byte("hi"), false}},
+			want:    `unexpected package entry "README.md"`,
+		},
+		"duplicate manifest": {
+			entries: []zipEntry{{FileName, []byte(goodTOML), false}, {WasmName, goodWasm, false}, {FileName, []byte(goodTOML), false}},
+			want:    "package has more than one " + FileName,
+		},
+		"duplicate wasm": {
+			entries: []zipEntry{{FileName, []byte(goodTOML), false}, {WasmName, goodWasm, false}, {WasmName, goodWasm, false}},
+			want:    "package has more than one " + WasmName,
+		},
+		"nested lookalike manifest": {
+			entries: []zipEntry{{FileName, []byte(goodTOML), false}, {WasmName, goodWasm, false}, {"sub/" + FileName, []byte(goodTOML), false}},
+			want:    `"sub/` + FileName + `" is not at the root`,
+		},
+		"nested lookalike wasm": {
+			entries: []zipEntry{{FileName, []byte(goodTOML), false}, {WasmName, goodWasm, false}, {"sub/" + WasmName, goodWasm, false}},
+			want:    `"sub/` + WasmName + `" is not at the root`,
+		},
+		"directory entry": {
+			entries: []zipEntry{{FileName, []byte(goodTOML), false}, {WasmName, goodWasm, false}, {"sub/", nil, false}},
+			want:    `"sub/" is not at the root`,
+		},
+		"encrypted entry": {
+			entries: []zipEntry{{FileName, []byte(goodTOML), false}, {WasmName, goodWasm, true}},
+			want:    `"` + WasmName + `" is encrypted`,
+		},
+		"missing wasm": {
+			entries: []zipEntry{{FileName, []byte(goodTOML), false}},
+			want:    "package has no " + WasmName + " at its root",
+		},
+		"empty archive": {
+			entries: nil,
+			want:    "package has no " + FileName + " at its root",
+		},
+	}
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			_, err := ReadPackage(rawZip(t, tc.entries...))
+			if err == nil {
+				t.Fatalf("accepted, want rejection containing %q", tc.want)
+			}
+			if !strings.Contains(err.Error(), tc.want) {
+				t.Errorf("error %q does not contain %q", err, tc.want)
+			}
+		})
+	}
+
+	// The contract's other side: exactly the two right entries pass it, in
+	// either order.
+	for _, entries := range [][]zipEntry{
+		{{FileName, []byte(goodTOML), false}, {WasmName, goodWasm, false}},
+		{{WasmName, goodWasm, false}, {FileName, []byte(goodTOML), false}},
+	} {
+		if _, err := ReadPackage(rawZip(t, entries...)); err != nil {
+			t.Errorf("valid package %v rejected: %v", entries[0].name, err)
+		}
 	}
 }
 
