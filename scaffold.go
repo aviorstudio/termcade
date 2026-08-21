@@ -104,11 +104,16 @@ height = 40
 "←/→"   = "move paddle"
 `
 
+// scaffoldSDK is the released SDK version new games are generated against.
+// It must be a published release: a scaffolded project resolves it from the
+// module proxy with no replace, exactly like any other consumer.
+const scaffoldSDK = "v0.0.2"
+
 const goModTmpl = `module example.com/%s/%s
 
 go 1.26.2
 
-require github.com/aviorstudio/termcade/sdk v0.0.1
+require github.com/aviorstudio/termcade/sdk ` + scaffoldSDK + `
 
 // Developing against a local termcade checkout? Point the sdk there:
 // replace github.com/aviorstudio/termcade/sdk => /path/to/termcade/sdk
