@@ -80,6 +80,17 @@ func rootEntries(zr *zip.Reader) (manifestF, wasmF *zip.File, err error) {
 		if f.Flags&0x1 != 0 {
 			return nil, nil, fmt.Errorf("package entry %q is encrypted", f.Name)
 		}
+		// A directory is also marked by external attributes, with no
+		// trailing slash required — so a name match is not enough. The two
+		// required entries must be regular files (FileInfo semantics, which
+		// cover the MS-DOS directory bit and Unix mode bits alike); any
+		// other type — directory, symlink, device — has no meaning in a
+		// two-file package.
+		if f.Name == FileName || f.Name == WasmName {
+			if !f.FileInfo().Mode().IsRegular() {
+				return nil, nil, fmt.Errorf("package entry %q is not a regular file", f.Name)
+			}
+		}
 		switch f.Name {
 		case FileName:
 			if manifestF != nil {

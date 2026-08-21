@@ -3,6 +3,7 @@ package manifest
 import (
 	"archive/zip"
 	"bytes"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
@@ -110,12 +111,14 @@ var goodWasm = []byte{0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00}
 type zipEntry struct {
 	name      string
 	body      []byte
-	encrypted bool // sets general-purpose flag bit 0 without encrypting
+	encrypted bool        // sets general-purpose flag bit 0 without encrypting
+	mode      fs.FileMode // external attributes, e.g. fs.ModeDir without a "/" name
 }
 
 // rawZip builds a zip in memory with exactly the entries given, in order —
-// including duplicate names (legal in zip, rejected by the package contract)
-// and encrypted flags, neither of which WritePackage can produce.
+// including duplicate names (legal in zip, rejected by the package contract),
+// encrypted flags and attribute-marked directories, none of which
+// WritePackage can produce.
 func rawZip(t *testing.T, entries ...zipEntry) []byte {
 	t.Helper()
 	var buf bytes.Buffer
@@ -123,11 +126,16 @@ func rawZip(t *testing.T, entries ...zipEntry) []byte {
 	for _, e := range entries {
 		var w interface{ Write([]byte) (int, error) }
 		var err error
-		if e.encrypted {
+		switch {
+		case e.encrypted:
 			fh := &zip.FileHeader{Name: e.name, Method: zip.Store}
 			fh.Flags |= 0x1
 			w, err = zw.CreateRaw(fh)
-		} else {
+		case e.mode != 0:
+			fh := &zip.FileHeader{Name: e.name, Method: zip.Deflate}
+			fh.SetMode(e.mode)
+			w, err = zw.CreateHeader(fh)
+		default:
 			w, err = zw.Create(e.name)
 		}
 		if err != nil {
@@ -152,35 +160,50 @@ func TestPackageEntryContract(t *testing.T) {
 		want    string // substring of the rejection message
 	}{
 		"extra root entry": {
-			entries: []zipEntry{{FileName, []byte(goodTOML), false}, {WasmName, goodWasm, false}, {"README.md", []byte("hi"), false}},
+			entries: []zipEntry{{FileName, []byte(goodTOML), false, 0}, {WasmName, goodWasm, false, 0}, {"README.md", []byte("hi"), false, 0}},
 			want:    `unexpected package entry "README.md"`,
 		},
 		"duplicate manifest": {
-			entries: []zipEntry{{FileName, []byte(goodTOML), false}, {WasmName, goodWasm, false}, {FileName, []byte(goodTOML), false}},
+			entries: []zipEntry{{FileName, []byte(goodTOML), false, 0}, {WasmName, goodWasm, false, 0}, {FileName, []byte(goodTOML), false, 0}},
 			want:    "package has more than one " + FileName,
 		},
 		"duplicate wasm": {
-			entries: []zipEntry{{FileName, []byte(goodTOML), false}, {WasmName, goodWasm, false}, {WasmName, goodWasm, false}},
+			entries: []zipEntry{{FileName, []byte(goodTOML), false, 0}, {WasmName, goodWasm, false, 0}, {WasmName, goodWasm, false, 0}},
 			want:    "package has more than one " + WasmName,
 		},
 		"nested lookalike manifest": {
-			entries: []zipEntry{{FileName, []byte(goodTOML), false}, {WasmName, goodWasm, false}, {"sub/" + FileName, []byte(goodTOML), false}},
+			entries: []zipEntry{{FileName, []byte(goodTOML), false, 0}, {WasmName, goodWasm, false, 0}, {"sub/" + FileName, []byte(goodTOML), false, 0}},
 			want:    `"sub/` + FileName + `" is not at the root`,
 		},
 		"nested lookalike wasm": {
-			entries: []zipEntry{{FileName, []byte(goodTOML), false}, {WasmName, goodWasm, false}, {"sub/" + WasmName, goodWasm, false}},
+			entries: []zipEntry{{FileName, []byte(goodTOML), false, 0}, {WasmName, goodWasm, false, 0}, {"sub/" + WasmName, goodWasm, false, 0}},
 			want:    `"sub/` + WasmName + `" is not at the root`,
 		},
 		"directory entry": {
-			entries: []zipEntry{{FileName, []byte(goodTOML), false}, {WasmName, goodWasm, false}, {"sub/", nil, false}},
+			entries: []zipEntry{{FileName, []byte(goodTOML), false, 0}, {WasmName, goodWasm, false, 0}, {"sub/", nil, false, 0}},
 			want:    `"sub/" is not at the root`,
 		},
+		// A directory is marked by external attributes too, not only by a
+		// trailing slash: a required name carrying ModeDir (or any other
+		// non-regular mode) is not a file, whatever its name says.
+		"manifest marked as directory": {
+			entries: []zipEntry{{FileName, []byte(goodTOML), false, fs.ModeDir | 0o755}, {WasmName, goodWasm, false, 0}},
+			want:    `"` + FileName + `" is not a regular file`,
+		},
+		"wasm marked as directory": {
+			entries: []zipEntry{{FileName, []byte(goodTOML), false, 0}, {WasmName, goodWasm, false, fs.ModeDir | 0o755}},
+			want:    `"` + WasmName + `" is not a regular file`,
+		},
+		"wasm marked as symlink": {
+			entries: []zipEntry{{FileName, []byte(goodTOML), false, 0}, {WasmName, goodWasm, false, fs.ModeSymlink | 0o777}},
+			want:    `"` + WasmName + `" is not a regular file`,
+		},
 		"encrypted entry": {
-			entries: []zipEntry{{FileName, []byte(goodTOML), false}, {WasmName, goodWasm, true}},
+			entries: []zipEntry{{FileName, []byte(goodTOML), false, 0}, {WasmName, goodWasm, true, 0}},
 			want:    `"` + WasmName + `" is encrypted`,
 		},
 		"missing wasm": {
-			entries: []zipEntry{{FileName, []byte(goodTOML), false}},
+			entries: []zipEntry{{FileName, []byte(goodTOML), false, 0}},
 			want:    "package has no " + WasmName + " at its root",
 		},
 		"empty archive": {
@@ -203,8 +226,8 @@ func TestPackageEntryContract(t *testing.T) {
 	// The contract's other side: exactly the two right entries pass it, in
 	// either order.
 	for _, entries := range [][]zipEntry{
-		{{FileName, []byte(goodTOML), false}, {WasmName, goodWasm, false}},
-		{{WasmName, goodWasm, false}, {FileName, []byte(goodTOML), false}},
+		{{FileName, []byte(goodTOML), false, 0}, {WasmName, goodWasm, false, 0}},
+		{{WasmName, goodWasm, false, 0}, {FileName, []byte(goodTOML), false, 0}},
 	} {
 		if _, err := ReadPackage(rawZip(t, entries...)); err != nil {
 			t.Errorf("valid package %v rejected: %v", entries[0].name, err)
