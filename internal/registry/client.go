@@ -11,6 +11,7 @@ package registry
 
 import (
 	"bytes"
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -39,6 +40,11 @@ const DefaultURL = "https://api.termca.de"
 
 // maxPackageSize matches the registry's publish-time ceiling.
 const maxPackageSize = 64 << 20
+
+// maxJSONResponse bounds API metadata. Packages use their separate 64 MiB
+// streaming limit; catalog/account JSON has no reason to consume unbounded
+// memory if a peer is broken or hostile.
+const maxJSONResponse = 1 << 20
 
 // ErrLoginRequired distinguishes "you need an account" from real failures.
 var ErrLoginRequired = errors.New("login required")
@@ -122,7 +128,7 @@ type Session struct {
 	Email    string `json:"email"`
 	Token    string `json:"token"`
 	// Username is the handle this account publishes under. Empty is a real
-	// state — an account whose signup lost a handle race still logs in — and
+	// state — an account whose creation lost a handle race still logs in — and
 	// means publishing is refused until one is claimed.
 	Username string `json:"username,omitempty"`
 	// Notice is a server-side remark about an otherwise usable session. Not
@@ -162,6 +168,10 @@ type apiMessage struct {
 }
 
 func (c *Client) do(method, path string, body, out any) error {
+	return c.doContext(context.Background(), method, path, body, out)
+}
+
+func (c *Client) doContext(ctx context.Context, method, path string, body, out any) error {
 	var reader io.Reader
 	if body != nil {
 		encoded, err := json.Marshal(body)
@@ -170,7 +180,7 @@ func (c *Client) do(method, path string, body, out any) error {
 		}
 		reader = bytes.NewReader(encoded)
 	}
-	req, err := http.NewRequest(method, c.baseURL+path, reader)
+	req, err := http.NewRequestWithContext(ctx, method, c.baseURL+path, reader)
 	if err != nil {
 		return err
 	}
@@ -178,10 +188,13 @@ func (c *Client) do(method, path string, body, out any) error {
 		req.Header.Set("Content-Type", "application/json")
 	}
 	if c.token != "" {
-		req.Header.Set("Authorization", c.token)
+		req.Header.Set("Authorization", c.authorizationValue())
 	}
 	resp, err := c.http.Do(req)
 	if err != nil {
+		if ctx.Err() != nil {
+			return ctx.Err()
+		}
 		return unreachable(err)
 	}
 	defer resp.Body.Close()
@@ -196,17 +209,53 @@ func (c *Client) do(method, path string, body, out any) error {
 		var msg apiMessage
 		raw, _ := io.ReadAll(io.LimitReader(resp.Body, 8<<10))
 		if json.Unmarshal(raw, &msg) == nil && msg.Message != "" {
-			return responseError{status: resp.StatusCode, message: msg.Message}
+			return responseError{status: resp.StatusCode, message: safeText(msg.Message, 300)}
 		}
-		if resp.StatusCode >= 500 {
-			return fmt.Errorf("the marketplace is having trouble (HTTP %d) — try again shortly", resp.StatusCode)
+		if resp.StatusCode >= 500 || resp.StatusCode == http.StatusRequestTimeout || resp.StatusCode == http.StatusTooManyRequests {
+			return responseError{status: resp.StatusCode, message: fmt.Sprintf("the marketplace is having trouble (HTTP %d) — try again shortly", resp.StatusCode)}
 		}
 		return fmt.Errorf("the marketplace refused that request (HTTP %d)", resp.StatusCode)
 	}
 	if out == nil {
 		return nil
 	}
-	return json.NewDecoder(resp.Body).Decode(out)
+	raw, err := io.ReadAll(io.LimitReader(resp.Body, maxJSONResponse+1))
+	if err != nil || len(raw) > maxJSONResponse {
+		return errors.New("the marketplace returned malformed data")
+	}
+	decoder := json.NewDecoder(bytes.NewReader(raw))
+	if err := decoder.Decode(out); err != nil {
+		return errors.New("the marketplace returned malformed data")
+	}
+	var trailing any
+	if err := decoder.Decode(&trailing); !errors.Is(err, io.EOF) {
+		return errors.New("the marketplace returned malformed data")
+	}
+	return nil
+}
+
+func (c *Client) authorizationValue() string {
+	if strings.HasPrefix(c.token, "tcc_") || strings.HasPrefix(c.token, "tck_") {
+		return "Bearer " + c.token
+	}
+	return c.token
+}
+
+// safeText makes server-controlled prose safe to render in a terminal. It
+// removes control characters and applies a byte ceiling before the value can
+// reach an error, log, or TUI notice.
+func safeText(value string, max int) string {
+	value = strings.ToValidUTF8(value, "")
+	var b strings.Builder
+	for _, r := range value {
+		if r >= 0x20 && r != 0x7f {
+			b.WriteRune(r)
+		}
+		if b.Len() >= max {
+			break
+		}
+	}
+	return strings.TrimSpace(b.String())
 }
 
 // CatalogPage is one page of the marketplace and the cursor that continues it.
@@ -340,7 +389,7 @@ func (c *Client) Download(author, slug string) (string, error) {
 		return "", err
 	}
 	if c.token != "" {
-		req.Header.Set("Authorization", c.token)
+		req.Header.Set("Authorization", c.authorizationValue())
 	}
 
 	resp, err := c.http.Do(req)
@@ -408,39 +457,6 @@ func (c *Client) Publish(repo, tag, asset string) (Published, error) {
 	var out Published
 	body := map[string]string{"repo": repo, "tag": tag, "asset": asset}
 	return out, c.do(http.MethodPost, "/v1/publish", body, &out)
-}
-
-type credentials struct {
-	Email    string `json:"email"`
-	Password string `json:"password"`
-	// Username is sent on signup and omitted on login, where the account
-	// already has one.
-	Username string `json:"username,omitempty"`
-}
-
-func (c *Client) Login(email, password string) (Session, error) {
-	var out Session
-	err := c.do(http.MethodPost, "/v1/auth/login", credentials{Email: email, Password: password}, &out)
-	if errors.Is(err, ErrLoginRequired) {
-		return Session{}, errors.New("wrong email or password")
-	}
-	if err != nil {
-		return Session{}, err
-	}
-	out.Registry = c.baseURL
-	return out, nil
-}
-
-// Signup creates an account and claims its handle in one call. The handle is
-// required: it is the author segment of every game this account publishes.
-func (c *Client) Signup(email, password, username string) (Session, error) {
-	var out Session
-	body := credentials{Email: email, Password: password, Username: username}
-	if err := c.do(http.MethodPost, "/v1/auth/signup", body, &out); err != nil {
-		return Session{}, err
-	}
-	out.Registry = c.baseURL
-	return out, nil
 }
 
 func (c *Client) LibraryAdd(author, slug string) error {
@@ -559,8 +575,12 @@ type Me struct {
 }
 
 func (c *Client) Me() (Me, error) {
+	return c.MeContext(context.Background())
+}
+
+func (c *Client) MeContext(ctx context.Context) (Me, error) {
 	var out Me
-	return out, c.do(http.MethodGet, "/v1/me", nil, &out)
+	return out, c.doContext(ctx, http.MethodGet, "/v1/me", nil, &out)
 }
 
 // CreateOrg creates a studio and claims its handle, with the caller as its
