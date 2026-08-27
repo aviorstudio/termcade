@@ -100,8 +100,10 @@ The arcade opens on your recently played games, with the library (`l`) and
 marketplace (`m`) one keystroke away. Press `m` to browse — that much is
 anonymous — and sign in to install. The bundled games are what a signed-out
 arcade plays; an account is what adds to them, and it is also what publishing
-and the library mirror hang off. The arcade has its own sign-in/sign-up
-screens, so you never need the website.
+and the library mirror hang off. Run `termcade login`; it displays a short
+one-time code for `https://app.termca.de/pair`, where the browser handles
+account authentication. Termcade never asks for account credentials in the
+terminal.
 
 The gate is a product decision, not a security boundary: packages are public
 GitHub release assets, so an account is not what keeps anyone out. What it
@@ -111,7 +113,7 @@ mirror to a library on your account, and `termcade sync` brings it back down
 enough. Sync only adds: a game you installed from a file stays put, because a
 server having never heard of it is not a reason to delete it.
 
-Signing up claims a **username** — your publishing handle, and the author
+Creating an account in the app claims a **username** — your publishing handle, and the author
 segment of every game you release. `nicodes/pong` and `aviorstudio/tetris` are
 the same kind of name: the second belongs to an org, which is a studio more
 than one person can publish under. Being a member is enough to publish; admin
@@ -120,7 +122,7 @@ governs the studio itself.
 The same works from the command line:
 
 ```sh
-termcade signup                          # create an account + claim a handle
+termcade login                           # approve this CLI in your browser
 termcade add aviorstudio/brickough       # add straight from the marketplace
 termcade dev install <file>.tcade        # install a local build while developing
 termcade whoami                          # who you are, and what you publish as

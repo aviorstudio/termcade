@@ -1,71 +1,40 @@
 package main
 
 import (
-	"bufio"
+	"context"
+	"errors"
 	"fmt"
+	"io"
 	"os"
-	"strings"
-
-	"golang.org/x/term"
+	"os/signal"
 
 	"github.com/aviorstudio/termcade/internal/registry"
 )
 
-// promptCredentials collects email (arg or prompt) and a hidden password.
-func promptCredentials(args []string, confirm bool) (email, password string, err error) {
-	reader := bufio.NewReader(os.Stdin)
-	if len(args) >= 1 {
-		email = args[0]
-	} else {
-		fmt.Print("email: ")
-		line, err := reader.ReadString('\n')
-		if err != nil {
-			return "", "", err
-		}
-		email = strings.TrimSpace(line)
-	}
-	if email == "" {
-		return "", "", fmt.Errorf("an email is required")
-	}
-
-	fmt.Print("password: ")
-	raw, err := term.ReadPassword(int(os.Stdin.Fd()))
-	fmt.Println()
-	if err != nil {
-		return "", "", fmt.Errorf("reading password: %w", err)
-	}
-	password = string(raw)
-	if confirm {
-		fmt.Print("confirm password: ")
-		again, err := term.ReadPassword(int(os.Stdin.Fd()))
-		fmt.Println()
-		if err != nil {
-			return "", "", fmt.Errorf("reading password: %w", err)
-		}
-		if string(again) != password {
-			return "", "", fmt.Errorf("passwords do not match")
-		}
-	}
-	return email, password, nil
+func cmdLogin(args []string) error {
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
+	defer stop()
+	return cmdLoginContext(ctx, args, os.Stdout)
 }
 
-func cmdLogin(args []string) error {
-	if len(args) > 1 {
-		return fmt.Errorf("usage: termcade login [email]")
-	}
-	email, password, err := promptCredentials(args, false)
-	if err != nil {
-		return err
+func cmdLoginContext(ctx context.Context, args []string, out io.Writer) error {
+	if len(args) != 0 {
+		return fmt.Errorf("usage: termcade login")
 	}
 	client := registry.New(registry.URL(nil), "")
-	session, err := client.Login(email, password)
+	session, err := client.DeviceLogin(ctx, "Termcade CLI", func(uri, code string) {
+		fmt.Fprintf(out, "\nUsing a browser, visit:\n  %s\n\nAnd enter this code:\n  %s\n\nWaiting for approval (Ctrl+C to cancel)…\n", uri, code)
+	})
 	if err != nil {
+		if context.Cause(ctx) != nil {
+			return errors.New("login canceled")
+		}
 		return err
 	}
 	if err := registry.SaveSession(session); err != nil {
 		return err
 	}
-	fmt.Printf("logged in as %s (%s)\n", session.Email, session.Registry)
+	fmt.Fprintf(out, "logged in as %s (%s)\n", session.Email, session.Registry)
 
 	// Signing in on a new machine is the moment your library should arrive.
 	// Nobody should have to know a second command exists to get the games
@@ -79,55 +48,6 @@ func cmdLogin(args []string) error {
 	return nil
 }
 
-// promptUsername collects the handle a new account claims. It is not
-// optional: a handle is the author segment of every game published from this
-// account, and an account without one cannot publish at all.
-func promptUsername(reader *bufio.Reader) (string, error) {
-	fmt.Print("username (this is your publishing handle, e.g. nicodes): ")
-	line, err := reader.ReadString('\n')
-	if err != nil {
-		return "", err
-	}
-	name := strings.TrimSpace(line)
-	if name == "" {
-		return "", fmt.Errorf("a username is required")
-	}
-	return name, nil
-}
-
-func cmdSignup(args []string) error {
-	if len(args) > 1 {
-		return fmt.Errorf("usage: termcade signup [email]")
-	}
-	username, err := promptUsername(bufio.NewReader(os.Stdin))
-	if err != nil {
-		return err
-	}
-	email, password, err := promptCredentials(args, true)
-	if err != nil {
-		return err
-	}
-	client := registry.New(registry.URL(nil), "")
-	session, err := client.Signup(email, password, username)
-	if err != nil {
-		return err
-	}
-	if err := registry.SaveSession(session); err != nil {
-		return err
-	}
-	// The handle is the useful half of the greeting: it is what a game id
-	// starts with, so it is what an author needs to know they have.
-	if session.Username != "" {
-		fmt.Printf("welcome to termcade, %s — publish as %s/<game>\n", session.Email, session.Username)
-	} else {
-		fmt.Printf("welcome to termcade, %s\n", session.Email)
-	}
-	if session.Notice != "" {
-		fmt.Fprintln(os.Stderr, "note:", session.Notice)
-	}
-	return nil
-}
-
 func cmdLogout() error {
 	if err := registry.ClearSession(); err != nil {
 		return err
@@ -137,7 +57,7 @@ func cmdLogout() error {
 }
 
 // cmdKeys manages publish keys: the credential a release workflow holds so
-// publishing does not need a password on a machine nobody is sitting at.
+// publishing does not need an interactive account login on a CI runner.
 func cmdKeys(args []string) error {
 	session, err := registry.LoadSession()
 	if err != nil {
@@ -369,7 +289,7 @@ func cmdWhoami() error {
 
 	fmt.Printf("%s (%s)\n", me.Email, session.Registry)
 	if me.Username == "" {
-		// A real state: an account whose signup lost a race for its handle.
+		// A real state: an account whose creation lost a race for its handle.
 		fmt.Println("\nno username yet — claim one with `termcade username <name>`")
 	} else {
 		fmt.Printf("\npublish as:\n  %-24s you\n", me.Username)
@@ -410,7 +330,7 @@ func cmdUsername(args []string) error {
 			}
 			return fmt.Errorf("%s is taken (by %s)", args[0], kind)
 		}
-		fmt.Printf("%s is available — claim it with `termcade signup`\n", args[0])
+		fmt.Printf("%s is available — create an account in the app, then claim it after `termcade login`\n", args[0])
 		return nil
 	}
 

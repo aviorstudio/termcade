@@ -39,8 +39,7 @@ usage:
                                free, signed out)
   termcade account delete <u>  delete your account
 
-  termcade signup [email]      create a marketplace account
-  termcade login [email]       sign in (publishing and your account library)
+  termcade login               sign in securely in your browser
   termcade logout              sign out
 
   termcade dev new <id> [dir]  start your own game (id is author/slug)
@@ -69,8 +68,6 @@ func runCommand(args []string) bool {
 		err = cmdSync()
 	case "login":
 		err = cmdLogin(args[1:])
-	case "signup":
-		err = cmdSignup(args[1:])
 	case "logout":
 		err = cmdLogout()
 	case "publish":
@@ -148,7 +145,7 @@ func cmdAdd(args []string) error {
 	// pack is what a signed-out arcade has to play; local author iteration is
 	// the explicit `dev install` path above this product boundary.
 	if session == nil {
-		return fmt.Errorf("installing a game requires an account — run `termcade login` (or `termcade signup`)")
+		return fmt.Errorf("installing a game requires an account — run `termcade login`")
 	}
 
 	return addFromRegistry(session, id)
@@ -339,6 +336,9 @@ func cmdPublish(args []string) error {
 	switch {
 	case token != "":
 		// A key names its own handle, so no session is needed or wanted.
+		if !registry.IsPublishKey(token) {
+			return fmt.Errorf("TERMCADE_TOKEN must be a scoped publish key created by `termcade keys new`")
+		}
 	case session != nil:
 		token = session.Token
 	default:

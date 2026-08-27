@@ -7,7 +7,6 @@ require (
 	charm.land/lipgloss/v2 v2.0.5
 	github.com/BurntSushi/toml v1.6.0
 	github.com/tetratelabs/wazero v1.12.0
-	golang.org/x/term v0.45.0
 )
 
 require (

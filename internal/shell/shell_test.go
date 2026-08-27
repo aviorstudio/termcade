@@ -363,12 +363,6 @@ func fakeMarket(signedIn *bool, installed *[]engine.Registration) *Marketplace {
 			}
 			return "", false
 		},
-		SignIn: func(email, password string) error { *signedIn = true; return nil },
-		SignUp: func(username, email, password string) error {
-			*signedIn = true
-			signedUpAs = username
-			return nil
-		},
 		SignOut: func() error { *signedIn = false; return nil },
 		Reload: func() []engine.Registration {
 			g := &fakeGame{}
@@ -381,10 +375,6 @@ func fakeMarket(signedIn *bool, installed *[]engine.Registration) *Marketplace {
 	}
 }
 
-// signedUpAs records the handle the signup form submitted, so a test can
-// prove the field is wired rather than merely present.
-var signedUpAs string
-
 func newMarketShell(t *testing.T) (Model, *bool, *[]engine.Registration) {
 	t.Helper()
 	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
@@ -393,7 +383,6 @@ func newMarketShell(t *testing.T) (Model, *bool, *[]engine.Registration) {
 		t.Fatal(err)
 	}
 	signedIn := false
-	signedUpAs = ""
 	var installed []engine.Registration
 	mp := fakeMarket(&signedIn, &installed)
 	m := New(mp.Reload(), st, sdk.Quadrant, mp)
@@ -509,44 +498,23 @@ func TestMarketInstallAsGuest(t *testing.T) {
 	}
 }
 
-func TestMarketSignup(t *testing.T) {
-	m, signedIn, _ := newMarketShell(t)
+func TestMarketAuthCollectsNoCredentials(t *testing.T) {
+	m, _, _ := newMarketShell(t)
 	mm, cmd := step(t, m, key("m"))
 	mm = drain(t, mm, cmd)
 
 	mm, _ = step(t, mm, key("l"))
-	mm, _ = step(t, mm, key("j"))
-	mm, _ = step(t, mm, key("enter"))
-
-	// Signing up asks for a handle first: it is what games are published
-	// under, so it is the decision being made rather than a field below the
-	// password.
-	typeIn := func(m Model, text string) Model {
-		for _, r := range text {
-			m, _ = step(t, m, key(string(r)))
+	out := view(mm)
+	for _, want := range []string{"termcade login", "https://app.termca.de/pair", "never asks for account credentials"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("secure auth view missing %q:\n%s", want, out)
 		}
-		return m
 	}
-	mm = typeIn(mm, "nicodes")
-	mm, _ = step(t, mm, key("tab"))
-	mm = typeIn(mm, "p@t.dev")
-	mm, _ = step(t, mm, key("tab"))
-	mm = typeIn(mm, "password123")
-
-	mm, cmd = step(t, mm, key("enter"))
-	if cmd == nil {
-		t.Fatal("no signup command issued")
+	for _, r := range "not-a-secret" {
+		mm, _ = step(t, mm, key(string(r)))
 	}
-	mm = drain(t, mm, cmd)
-
-	if signedUpAs != "nicodes" {
-		t.Errorf("signup submitted username %q, want nicodes", signedUpAs)
-	}
-	if !*signedIn {
-		t.Fatal("signup hook not called")
-	}
-	if mm.screen != screenMarket {
-		t.Fatalf("screen = %v after signup", mm.screen)
+	if strings.Contains(view(mm), "not-a-secret") {
+		t.Fatal("auth view accepted terminal credential input")
 	}
 }
 
@@ -797,28 +765,6 @@ func TestFinishingARunQueuesItAndSyncs(t *testing.T) {
 	drain(t, m, cmd)
 	if calls != 1 {
 		t.Errorf("sync ran %d times after a run, want 1", calls)
-	}
-}
-
-// Signing in is the moment everything played without an account has somewhere
-// to go.
-func TestSigningInSyncs(t *testing.T) {
-	calls := 0
-	m := newSyncShell(t, syncingMarket(&calls, "", nil))
-
-	m.screen = screenAuth
-	m, cmd := step(t, m, authDoneMsg{})
-	if m.screen != screenMarket {
-		t.Fatalf("screen = %v after signing in", m.screen)
-	}
-	if cmd == nil {
-		t.Fatal("signing in issued no sync")
-	}
-	// Batched with the page-clear the route change adds, so it has to be run
-	// as a chain rather than called.
-	drain(t, m, cmd)
-	if calls != 1 {
-		t.Errorf("sync ran %d times after sign-in, want 1", calls)
 	}
 }
 
