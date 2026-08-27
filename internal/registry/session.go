@@ -36,12 +36,18 @@ func LoadSession() (*Session, error) {
 	if s.Token == "" {
 		return nil, nil
 	}
+	if !IsCLIToken(s.Token) {
+		return nil, fmt.Errorf("the saved login uses an unsupported credential — run `termcade login`")
+	}
 	return &s, nil
 }
 
 // SaveSession persists a login. The file is user-readable only: the token is
 // a bearer credential.
 func SaveSession(s Session) error {
+	if !IsCLIToken(s.Token) {
+		return fmt.Errorf("refusing to save a non-CLI credential")
+	}
 	path, err := sessionPath()
 	if err != nil {
 		return err
@@ -53,7 +59,28 @@ func SaveSession(s Session) error {
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(path, raw, 0o600)
+	tmp, err := os.CreateTemp(filepath.Dir(path), ".session-*")
+	if err != nil {
+		return err
+	}
+	tmpPath := tmp.Name()
+	defer os.Remove(tmpPath)
+	if err := tmp.Chmod(0o600); err != nil {
+		tmp.Close()
+		return err
+	}
+	if _, err := tmp.Write(raw); err != nil {
+		tmp.Close()
+		return err
+	}
+	if err := tmp.Sync(); err != nil {
+		tmp.Close()
+		return err
+	}
+	if err := tmp.Close(); err != nil {
+		return err
+	}
+	return os.Rename(tmpPath, path)
 }
 
 // ClearSession logs out. A missing file is already logged out.

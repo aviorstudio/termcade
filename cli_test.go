@@ -26,7 +26,7 @@ func TestExpiredSessionDoesNotPretendLibraryRemovalSucceeded(t *testing.T) {
 	t.Cleanup(srv.Close)
 
 	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
-	if err := registry.SaveSession(registry.Session{Registry: srv.URL, Token: "expired"}); err != nil {
+	if err := registry.SaveSession(registry.Session{Registry: srv.URL, Token: "tcc_" + strings.Repeat("A", 43)}); err != nil {
 		t.Fatal(err)
 	}
 	err := syncLibraryRemove("aviorstudio", "tetris")
@@ -52,5 +52,14 @@ func TestMarketplaceAddRequestOrderIsStable(t *testing.T) {
 	_ = addFromRegistry(&registry.Session{Registry: srv.URL, Token: "session"}, "aviorstudio/tetris")
 	if !slices.Equal(got, want) {
 		t.Fatalf("requests = %v, want %v", got, want)
+	}
+}
+
+func TestPublishEnvironmentAcceptsOnlyPublishKeys(t *testing.T) {
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	t.Setenv("TERMCADE_TOKEN", "tcc_"+strings.Repeat("A", 43))
+	err := cmdPublish([]string{"https://github.com/acme/game", "v1.0.0", "game.tcade"})
+	if err == nil || !strings.Contains(err.Error(), "scoped publish key") {
+		t.Fatalf("CLI credential used as publishing-key environment default: %v", err)
 	}
 }
