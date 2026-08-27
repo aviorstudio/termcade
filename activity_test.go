@@ -61,7 +61,7 @@ func session(t *testing.T, f *fakeRegistry) *scores.Store {
 	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
 	t.Setenv("TERMCADE_REGISTRY", f.URL)
 	if err := registry.SaveSession(registry.Session{
-		Registry: f.URL, Email: "p@t.dev", Token: "good",
+		Registry: f.URL, Email: "p@t.dev", Token: "tcc_" + strings.Repeat("A", 43),
 	}); err != nil {
 		t.Fatalf("saving a session: %v", err)
 	}
