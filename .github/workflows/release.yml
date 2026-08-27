@@ -88,11 +88,17 @@ jobs:
       # organisation does.
       - name: Build
         uses: ./.github/actions/build
+        with:
+          version: ${{ steps.release.outputs.tag }}
 
       - name: Test
         uses: ./.github/actions/test
-        with:
-          version: ${{ steps.release.outputs.version }}
+
+      - name: Verify released binary version
+        env:
+          ARCHIVE: dist/termcade_Linux_x86_64.tar.gz
+          EXPECTED: termcade v${{ steps.release.outputs.version }}
+        run: .github/scripts/verify-release-archive.sh "$ARCHIVE" "$EXPECTED"
 
       # Installed games run sandboxed, but the arcade itself runs with the
       # player's full permissions — worth tying the archives to this workflow,
