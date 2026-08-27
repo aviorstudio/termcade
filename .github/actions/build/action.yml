@@ -12,7 +12,7 @@ description: >
 
 inputs:
   version:
-    description: Version to stamp into the binary (without the v)
+    description: Complete version string to stamp into the binary (for example, v0.0.10)
     required: false
     default: dev
 
@@ -25,6 +25,10 @@ runs:
         VERSION: ${{ inputs.version }}
       run: |
         set -euo pipefail
+        if [[ "$VERSION" != dev && ! "$VERSION" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+          echo "Unsupported version string: $VERSION" >&2
+          exit 1
+        fi
         mkdir -p dist
         # linux/386 and friends excluded on purpose: wazero's compiler backend
         # covers amd64/arm64, and everything else falls back to the
