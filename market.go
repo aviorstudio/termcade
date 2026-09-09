@@ -30,6 +30,7 @@ func newMarketplace(rt *plugin.Runtime, st *scores.Store) *shell.Marketplace {
 	}
 
 	return &shell.Marketplace{
+		Product: newProductServices(rt, st),
 		List: func() ([]shell.MarketGame, error) {
 			games, err := anonClient().Games()
 			if err != nil {

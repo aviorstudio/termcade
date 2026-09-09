@@ -22,6 +22,10 @@ func LoadSession() (*Session, error) {
 	if err != nil {
 		return nil, err
 	}
+	return loadSessionAt(path)
+}
+
+func loadSessionAt(path string) (*Session, error) {
 	raw, err := os.ReadFile(path)
 	if errors.Is(err, os.ErrNotExist) {
 		return nil, nil
@@ -51,6 +55,13 @@ func SaveSession(s Session) error {
 	path, err := sessionPath()
 	if err != nil {
 		return err
+	}
+	return saveSessionAt(path, s)
+}
+
+func saveSessionAt(path string, s Session) error {
+	if !IsCLIToken(s.Token) {
+		return fmt.Errorf("refusing to save a non-CLI credential")
 	}
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return err

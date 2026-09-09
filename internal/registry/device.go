@@ -272,6 +272,36 @@ func (c *Client) deviceLogin(ctx context.Context, deviceName string, display fun
 			}
 			verifyBackoff = nextBackoff(verifyBackoff)
 		}
-		return Session{Registry: c.baseURL, Email: me.Email, Username: me.Username, Token: approved.Token}, nil
+		return Session{Registry: c.baseURL, Email: me.Email, Username: me.Username, Token: approved.Token, CredentialID: approved.CredentialID, ExpiresAt: approved.ExpiresAt}, nil
 	}
+}
+
+// CompleteDevice is a single bounded round for an interactive TUI. Unlike the
+// shell command, it returns expiry so the person can explicitly start again.
+func (c *Client) CompleteDevice(ctx context.Context, round DeviceRound) (Session, error) {
+	approved, err := c.pollRound(ctx, round, productionDevicePolicy)
+	if err != nil {
+		return Session{}, err
+	}
+	client := New(c.baseURL, approved.Token).WithContext(ctx)
+	deadline, _ := time.Parse(time.RFC3339, approved.ExpiresAt)
+	backoff := time.Second
+	var me Me
+	for {
+		me, err = client.MeContext(ctx)
+		if err == nil {
+			break
+		}
+		if !transient(err) {
+			return Session{}, fmt.Errorf("verifying issued CLI credential: %w", err)
+		}
+		if err = waitWithin(ctx, productionDevicePolicy, backoff, deadline); err != nil {
+			return Session{}, fmt.Errorf("verifying issued CLI credential: %w", err)
+		}
+		backoff = nextBackoff(backoff)
+	}
+	if strings.TrimSpace(me.Email) == "" {
+		return Session{}, fmt.Errorf("the marketplace returned an incomplete account identity")
+	}
+	return Session{Registry: c.baseURL, Email: me.Email, Username: me.Username, Token: approved.Token, CredentialID: approved.CredentialID, ExpiresAt: approved.ExpiresAt}, nil
 }

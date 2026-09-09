@@ -1,7 +1,9 @@
 package shell
 
 import (
+	"context"
 	"strings"
+	"time"
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
@@ -22,6 +24,7 @@ type MarketGame struct {
 // the marketplace and account screens. All calls may block; the shell only
 // invokes them inside tea commands. A nil *Marketplace disables the screens.
 type Marketplace struct {
+	Product *ProductServices
 	List    func() ([]MarketGame, error)
 	Install func(id string) error
 	Remove  func(id string) error
@@ -98,6 +101,18 @@ func (m Model) removeCmd(id string) tea.Cmd {
 // yields no command at all, so an arcade built without one is not paying for a
 // goroutine per game over.
 func (m Model) syncCmd() tea.Cmd {
+	if m.productEnabled() {
+		if m.mp.Product.Sync == nil {
+			return nil
+		}
+		service := m.mp.Product
+		generation := m.app.accountGen
+		return func() tea.Msg {
+			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+			defer cancel()
+			return productSyncMsg{AccountGen: generation, Notice: service.Sync(ctx)}
+		}
+	}
 	if m.mp == nil || m.mp.Sync == nil {
 		return nil
 	}
