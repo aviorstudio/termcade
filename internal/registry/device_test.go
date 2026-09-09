@@ -124,6 +124,9 @@ func TestExpiredRoundRestartsWithBackoff(t *testing.T) {
 	if err != nil || starts != 2 || displays != 2 || session.Token != testToken {
 		t.Fatalf("session=%#v starts=%d displays=%d err=%v", session, starts, displays, err)
 	}
+	if session.CredentialID != "credential-id" || session.ExpiresAt == "" {
+		t.Fatal("login did not retain revocation metadata")
+	}
 }
 
 func TestPollingRetriesTransientFailureUntilApproval(t *testing.T) {
