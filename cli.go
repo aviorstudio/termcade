@@ -201,6 +201,13 @@ func cmdDevInstall(args []string) error {
 // compiles and exports the termcade ABI — then an atomic extract into the
 // games directory.
 func installPackageBytes(raw []byte) (*manifest.Package, string, error) {
+	return installPackageBytesContext(context.Background(), raw)
+}
+
+func installPackageBytesContext(ctx context.Context, raw []byte) (*manifest.Package, string, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, "", err
+	}
 	pkg, err := manifest.ReadPackage(raw)
 	if err != nil {
 		return nil, "", err
@@ -209,7 +216,7 @@ func installPackageBytes(raw []byte) (*manifest.Package, string, error) {
 		return nil, "", fmt.Errorf("%s needs ABI v%d; this termcade speaks v%d",
 			pkg.Manifest.Game.ID, pkg.Manifest.Requirements.ABI, 1)
 	}
-	rt := plugin.NewRuntime(context.Background())
+	rt := plugin.NewRuntime(ctx)
 	defer rt.Close()
 	if _, err := rt.Compile(pkg.Manifest.Game.ID, pkg.Wasm); err != nil {
 		return nil, "", err
@@ -217,6 +224,9 @@ func installPackageBytes(raw []byte) (*manifest.Package, string, error) {
 
 	gamesDir, err := plugin.GamesDir()
 	if err != nil {
+		return nil, "", err
+	}
+	if err := ctx.Err(); err != nil {
 		return nil, "", err
 	}
 	dest, err := pkg.Install(gamesDir)

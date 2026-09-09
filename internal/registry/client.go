@@ -133,13 +133,16 @@ type Session struct {
 	Username string `json:"username,omitempty"`
 	// Notice is a server-side remark about an otherwise usable session. Not
 	// persisted: it describes the moment the session was created.
-	Notice string `json:"notice,omitempty"`
+	Notice       string `json:"notice,omitempty"`
+	CredentialID string `json:"credential_id,omitempty"`
+	ExpiresAt    string `json:"expires_at,omitempty"`
 }
 
 type Client struct {
 	baseURL string
 	token   string
 	http    *http.Client
+	ctx     context.Context
 }
 
 // URL resolves the registry base URL: explicit env wins, then the session's
@@ -168,7 +171,32 @@ type apiMessage struct {
 }
 
 func (c *Client) do(method, path string, body, out any) error {
-	return c.doContext(context.Background(), method, path, body, out)
+	return c.doContext(c.requestContext(), method, path, body, out)
+}
+
+// WithContext scopes a TUI operation without mutating a client used by another command.
+func (c *Client) WithContext(ctx context.Context) *Client {
+	next := *c
+	next.ctx = ctx
+	transport := *c.http
+	transport.CheckRedirect = func(req *http.Request, via []*http.Request) error {
+		if len(via) > 0 && (req.URL.Scheme != via[0].URL.Scheme || req.URL.Host != via[0].URL.Host) {
+			return fmt.Errorf("refusing a registry redirect to another origin")
+		}
+		if len(via) >= 10 {
+			return fmt.Errorf("too many registry redirects")
+		}
+		return nil
+	}
+	next.http = &transport
+	return &next
+}
+
+func (c *Client) requestContext() context.Context {
+	if c.ctx != nil {
+		return c.ctx
+	}
+	return context.Background()
 }
 
 func (c *Client) doContext(ctx context.Context, method, path string, body, out any) error {
@@ -326,8 +354,15 @@ const maxCatalogPages = 20
 // for games this arcade can run: a marketplace full of entries that refuse to
 // install is worse than a shorter one.
 func (c *Client) Games() ([]Game, error) {
+	return c.catalog(CatalogQuery{ABI: sdk.ABIVersion})
+}
+
+// Catalog matches the web marketplace, including entries this runtime cannot
+// play. Availability belongs on each action, not in an invisible list filter.
+func (c *Client) Catalog() ([]Game, error) { return c.catalog(CatalogQuery{}) }
+
+func (c *Client) catalog(query CatalogQuery) ([]Game, error) {
 	var all []Game
-	query := CatalogQuery{ABI: sdk.ABIVersion}
 	for range maxCatalogPages {
 		page, err := c.CatalogPage(query)
 		if err != nil {
@@ -383,7 +418,7 @@ func (c *Client) Download(author, slug string) (string, error) {
 
 	q := url.Values{}
 	q.Set("abi", strconv.Itoa(sdk.ABIVersion))
-	req, err := http.NewRequest(http.MethodGet,
+	req, err := http.NewRequestWithContext(c.requestContext(), http.MethodGet,
 		c.baseURL+"/v1/games/"+author+"/"+slug+"/download?"+q.Encode(), nil)
 	if err != nil {
 		return "", err
@@ -626,6 +661,9 @@ func (c *Client) RemoveMember(org, email string) error {
 type HandleOwner struct {
 	Name  string `json:"name"`
 	IsOrg bool   `json:"is_org"`
+	Bio   string `json:"bio,omitempty"`
+	Link  string `json:"link,omitempty"`
+	Games []Game `json:"games,omitempty"`
 }
 
 // HandleTaken reports whether a handle is claimed, and by what kind of owner.

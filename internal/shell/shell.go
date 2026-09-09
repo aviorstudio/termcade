@@ -2,6 +2,7 @@
 package shell
 
 import (
+	"context"
 	"fmt"
 	"strconv"
 	"time"
@@ -34,6 +35,7 @@ const (
 	screenMarket
 	screenAuth
 	screenLibrary
+	screenProduct
 )
 
 // route is the full-screen page boundary. Gameplay overlays share one route;
@@ -46,6 +48,7 @@ const (
 	routeMarketplace
 	routeAccount
 	routeLibrary
+	routeProduct
 )
 
 func routeFor(s screen) route {
@@ -58,6 +61,8 @@ func routeFor(s screen) route {
 		return routeAccount
 	case screenLibrary:
 		return routeLibrary
+	case screenProduct:
+		return routeProduct
 	default:
 		return routeGame
 	}
@@ -71,20 +76,22 @@ type tickMsg struct {
 var pauseChoices = []string{"Resume", "Restart", "Quit to Menu"}
 
 type Model struct {
-	screen   screen
-	games    []engine.Registration
-	menuIdx  int
-	pauseIdx int
-	game     *engine.SafeGame
-	gameIdx  int
-	shape    sdk.CellShape
-	canvas   *sdk.Canvas
-	frame    string // cached canvas render, reused under overlays
-	scores   *scores.Store
-	newHigh  bool
-	notice   string // menu-level message, e.g. a game that failed to load
-	crash    string // what the crash screen shows
-	mp       *Marketplace
+	app         productState
+	gameVersion string
+	screen      screen
+	games       []engine.Registration
+	menuIdx     int
+	pauseIdx    int
+	game        *engine.SafeGame
+	gameIdx     int
+	shape       sdk.CellShape
+	canvas      *sdk.Canvas
+	frame       string // cached canvas render, reused under overlays
+	scores      *scores.Store
+	newHigh     bool
+	notice      string // menu-level message, e.g. a game that failed to load
+	crash       string // what the crash screen shows
+	mp          *Marketplace
 	// latest is the newest published version of each game, by id, as of the
 	// last sync or marketplace load. Empty until one has happened, which is
 	// why nothing claims an update is available before then.
@@ -101,14 +108,29 @@ type Model struct {
 
 // New builds the arcade model. mp may be nil, which hides the marketplace.
 func New(games []engine.Registration, st *scores.Store, shape sdk.CellShape, mp *Marketplace) Model {
-	return Model{games: games, scores: st, shape: shape, mp: mp}
+	m := Model{games: games, scores: st, shape: shape, mp: mp}
+	if m.productEnabled() {
+		m.screen = screenProduct
+		m.app.loc = productLocation{Page: "marketplace"}
+		m.app.focus = 1
+		m.app.gen = 1
+		m.app.loading = true
+		m.app.snapshot.Installed = games
+		m.app.ctx, m.app.cancel = context.WithTimeout(context.Background(), 45*time.Second)
+	}
+	return m
 }
 
 // Init syncs once at startup, which is where an arcade that was played offline
 // catches up and where one on a new machine learns what the account already
 // knows. It runs off the UI loop like every other marketplace call, so a slow
 // or absent network delays nothing.
-func (m Model) Init() tea.Cmd { return m.syncCmd() }
+func (m Model) Init() tea.Cmd {
+	if m.productEnabled() {
+		return tea.Batch(m.productInit(), m.syncCmd())
+	}
+	return m.syncCmd()
+}
 
 func (m Model) tick() tea.Cmd {
 	gen := m.tickGen
@@ -119,16 +141,24 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	previousRoute := routeFor(m.screen)
 	next, cmd := m.update(msg)
 	nextModel, ok := next.(Model)
-	if ok && routeFor(nextModel.screen) != previousRoute {
+	if ok && (routeFor(nextModel.screen) != previousRoute || (m.productEnabled() && m.app.loc != nextModel.app.loc)) {
 		// Bubble Tea normally repaints incrementally. A hard clear at page
 		// boundaries prevents cells from a larger route showing through a
 		// smaller one in terminals that do not erase blank cells reliably.
 		cmd = tea.Batch(tea.ClearScreen, cmd)
 	}
+	if ok && m.productEnabled() && m.game != nil && nextModel.game == nil {
+		cmd = tea.Batch(cmd, saveScores(m.scores), nextModel.syncCmd())
+	}
 	return next, cmd
 }
 
 func (m Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	if m.productEnabled() {
+		if mm, cmd, handled := m.updateProduct(msg); handled {
+			return mm, cmd
+		}
+	}
 	if m.mp != nil {
 		if mm, cmd, handled := m.updateMarketMsg(msg); handled {
 			return mm, cmd
@@ -189,7 +219,7 @@ func (m Model) updateTick(msg tickMsg) (tea.Model, tea.Cmd) {
 			// account, which is what carries the same arcade to another
 			// machine. It queues signed out too — signing in later sends it.
 			m.newHigh = m.scores.Record(
-				m.game.Info().ID, m.game.Score(), m.games[m.gameIdx].Version, true)
+				m.game.Info().ID, m.game.Score(), m.gameVersion, true)
 			m.screen = screenGameOver
 			// Saved off the tick path, and synced after it; neither may stall
 			// the loop the player is still looking at.
@@ -290,6 +320,13 @@ func (m Model) updateKey(key string) (tea.Model, tea.Cmd) {
 
 // quitToMenu releases the current game and returns to the menu.
 func (m Model) quitToMenu() Model {
+	if m.productEnabled() {
+		m = m.closeProductGame()
+		m.app.loc = productLocation{Page: "library"}
+		m.app.focus = 1
+		m.app.gameNav = false
+		return m
+	}
 	if m.game != nil {
 		m.game.Close()
 		m.game = nil
@@ -321,11 +358,20 @@ func (m Model) updatePausedKey(key string) (tea.Model, tea.Cmd) {
 }
 
 func (m Model) startGame(idx int) (tea.Model, tea.Cmd) {
+	if idx < 0 || idx >= len(m.games) {
+		m.notice = "Game is no longer installed"
+		m.app.notice = m.notice
+		return m, nil
+	}
 	if m.games[idx].Err != nil {
 		return m, nil // broken install; listed only so the player sees why
 	}
 	m.gameIdx = idx
+	m.gameVersion = m.games[idx].Version
 	m.notice = ""
+	if m.productEnabled() {
+		m.app.notice = ""
+	}
 	// A wasm guest sizes its pixel buffer from the shape at init, so a shape
 	// change needs a fresh instance, not just a fresh canvas.
 	sameShape := m.canvas != nil && m.canvas.Shape().Name == m.shape.Name
@@ -338,6 +384,10 @@ func (m Model) startGame(idx int) (tea.Model, tea.Cmd) {
 		if err != nil {
 			m.notice = m.games[idx].Info.Title + ": " + err.Error()
 			m.screen = screenMenu
+			if m.productEnabled() {
+				m.screen = screenProduct
+				m.app.notice = m.notice
+			}
 			return m, nil
 		}
 		m.game = engine.Safe(g)
@@ -406,6 +456,10 @@ func (m Model) View() tea.View {
 	// KeyTracker falls back to auto-repeat timing.
 	v.KeyboardEnhancements.ReportEventTypes = true
 	if m.termW == 0 {
+		return v
+	}
+	if m.productEnabled() {
+		v.SetContent(m.productView())
 		return v
 	}
 	var block string
