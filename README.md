@@ -22,8 +22,9 @@ you install, built from source in
 [termcade-games](https://github.com/aviorstudio/termcade-games) and vendored
 here as packages. Nothing is compiled into the binary as a game.
 
-Remove one and it stays removed — the arcade seeds a game once, not every
-run. For anything else, press `m` for the marketplace.
+Uninstall one and it stays uninstalled — the arcade seeds a game once, not every
+run. The TUI opens directly on Marketplace; Library includes installed games
+even while signed out.
 
 ## Run
 
@@ -57,8 +58,9 @@ requirements change.
 TERMCADE_PIXELS=sextant go run .
 ```
 
-In the arcade, `p` on the index or library cycles the pixel style and
-persists it to `~/.config/termcade/settings.json`; `TERMCADE_PIXELS`
+In the arcade, the pixel-style control in Settings or the pause menu cycles
+the style for the next game start and persists it to
+`~/.config/termcade/settings.json`; `TERMCADE_PIXELS`
 overrides the saved choice for a run. Games never change for any of this —
 the renderer owns the look.
 
@@ -77,41 +79,59 @@ the auto-repeat heuristic.
 
 | Key | Action |
 | --- | --- |
-| ↑/↓ or j/k | menu / pause navigation |
-| enter | select / launch |
+| Tab / Shift+Tab | focus navigation, page content, or actions; move between form controls |
+| ↑/↓ | select a row or pause-menu item |
+| ←/→ (actions) | select the focused action |
+| enter | activate a focused item/button; ordinary game rows open details |
+| Page Up / Page Down | page lists or scroll long detail/documentation text |
 | ←/→ (or a/d, h/l) | move paddle / turn ship / shift piece |
 | ↑ (or w) | thrust (Asteroid) · rotate (Tetris) |
 | ↓ (or s) | soft drop (Tetris) |
 | space or z | A button: launch ball / fire / hard drop |
 | x | B button |
 | esc or p | pause |
-| l (index) | library — every game you have |
-| m (index/library) | marketplace |
-| r (index/library) | remove the selected added game |
-| p (index/library) | cycle pixel style (incl. ASCII art) |
-| q | quit (from menu) |
+| esc (outside gameplay) | dismiss/back; stop waiting and reconcile a pending form mutation |
+| Ctrl+C | quit and save local scores |
+
+While a game runs, game inputs cannot operate the sidebar. Pause first, then
+Tab into navigation. The sidebar is 22 columns wide at 120+ terminal columns;
+below that it overlays the content on demand. Non-game content is capped at
+100 columns. Gameplay keeps its fixed cell footprint and hides the sidebar
+when needed to fit. See [TUI workflows](docs/tui.md) for the complete contract.
 
 High scores persist to `~/.config/termcade/scores.json`, and are yours whether
 or not you have an account — see [Your history](#your-history).
 
 ## The marketplace
 
-The arcade opens on your recently played games, with the library (`l`) and
-marketplace (`m`) one keystroke away. Press `m` to browse — that much is
-anonymous — and sign in to install. The bundled games are what a signed-out
-arcade plays; an account is what adds to them, and it is also what publishing
-and the library mirror hang off. Run `termcade login`; it displays a short
-one-time code for `https://app.termca.de/pair`, where the browser handles
-account authentication. Termcade never asks for account credentials in the
-terminal.
+The TUI opens on Marketplace and shares the web app's Marketplace, Docs,
+Library, owner/game pages, and account/settings destinations. Browsing is
+anonymous. Library joins account games with installed packages, with clear
+installation/membership badges and Continue Playing entries.
+
+In the **TUI**, Add saves account membership without downloading. Play installs
+a missing compatible account game; healthy installed games remain playable
+offline. Remove from Library changes only account membership; Uninstall here
+removes only the local package, after confirmation. No automatic updates replace
+an existing local copy.
+
+Sign in from Settings without exiting the TUI: it shows the trusted pairing URL
+and one-time code, and opens a browser only when you choose Open browser.
+Account authentication stays in the browser. Settings also supports handles,
+org/member administration, CLI-session revocation, account deletion, and
+revoke-then-clear sign-out. The normal pairing destination remains
+`https://app.termca.de/pair`.
 
 The gate is a product decision, not a security boundary: packages are public
 GitHub release assets, so an account is not what keeps anyone out. What it
-does is give every installed game somewhere to belong — your adds and removes
-mirror to a library on your account, and `termcade sync` brings it back down
-— which `termcade login` does for you, so signing in on a new machine is
-enough. Sync only adds: a game you installed from a file stays put, because a
-server having never heard of it is not a reason to delete it.
+does is give account games a library that follows you between devices.
+
+**Existing shell commands keep their established behavior:** `termcade add`
+saves membership and installs; `termcade remove` removes membership and the local
+copy; `termcade login` restores missing account packages; `termcade sync` adds
+missing packages without deleting local-only games or automatically updating
+existing copies. The new TUI's separate actions do not silently change those
+command contracts.
 
 Creating an account in the app claims a **username** — your publishing handle, and the author
 segment of every game you release. `nicodes/pong` and `aviorstudio/tetris` are
