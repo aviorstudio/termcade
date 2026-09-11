@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"net/url"
 	"regexp"
 	"strings"
 	"time"
@@ -57,6 +58,24 @@ type DevicePoll struct {
 	CredentialID string `json:"credential_id"`
 	ExpiresAt    string `json:"expires_at"`
 	Interval     int64  `json:"interval"`
+}
+
+// PairingURLWithCode appends the displayed user code as /pair/ABCD-EFGH so
+// opening the link can look the device up. Invalid codes are not attached.
+func PairingURLWithCode(base, code string) string {
+	code = strings.ToUpper(strings.TrimSpace(code))
+	if base == "" || !userCodeRE.MatchString(code) {
+		return base
+	}
+	parsed, err := url.Parse(base)
+	if err != nil || parsed.Host == "" || parsed.User != nil || parsed.RawQuery != "" || parsed.Fragment != "" || (parsed.Scheme != "http" && parsed.Scheme != "https") {
+		return base
+	}
+	if strings.TrimRight(parsed.Path, "/") != "/pair" {
+		return base
+	}
+	parsed.Path = "/pair/" + code
+	return parsed.String()
 }
 
 func (c *Client) StartDevice(ctx context.Context, deviceName string) (DeviceRound, error) {

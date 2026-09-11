@@ -10,7 +10,7 @@ import (
 )
 
 var (
-	logoStyle     = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#3fc4c9"))
+	logoStyle     = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#e6c945"))
 	selectedStyle = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#e6c945"))
 	normalStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("#f2f2f2"))
 )

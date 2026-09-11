@@ -101,6 +101,8 @@ type Game struct {
 	// was published; the second is absent on a game that has none.
 	CreatedAt  string `json:"created_at,omitempty"`
 	ReleasedAt string `json:"released_at,omitempty"`
+	Likes      int    `json:"likes"`
+	Liked      bool   `json:"liked,omitempty"`
 }
 
 // Resolved is which release to install and what it must hash to. The registry
@@ -303,7 +305,7 @@ type CatalogQuery struct {
 	Cursor string
 	// Limit is 1-200; zero lets the registry choose.
 	Limit int
-	// Search matches a game's name, id or description.
+	// Search matches a game's name, slug or description (not its owner).
 	Search string
 	// ABI restricts to games this arcade can run. Set by Games(); the registry
 	// treats zero as "do not filter".
@@ -360,6 +362,36 @@ func (c *Client) Games() ([]Game, error) {
 // Catalog matches the web marketplace, including entries this runtime cannot
 // play. Availability belongs on each action, not in an invisible list filter.
 func (c *Client) Catalog() ([]Game, error) { return c.catalog(CatalogQuery{}) }
+
+// SearchCatalog walks the full public result set, including short pages. Unlike
+// the legacy Games convenience method it never silently truncates at 20 pages.
+// Callers should supply a cancellable/deadlined client context.
+func (c *Client) SearchCatalog(search string) ([]Game, error) {
+	query := CatalogQuery{Search: strings.TrimSpace(search)}
+	var all []Game
+	seen := map[string]bool{}
+	ids := map[string]bool{}
+	for {
+		page, err := c.CatalogPage(query)
+		if err != nil {
+			return nil, err
+		}
+		for _, game := range page.Games {
+			if !ids[game.ID] {
+				all = append(all, game)
+				ids[game.ID] = true
+			}
+		}
+		if page.Next == "" {
+			return all, nil
+		}
+		if seen[page.Next] {
+			return nil, fmt.Errorf("marketplace returned a repeated page cursor")
+		}
+		seen[page.Next] = true
+		query.Cursor = page.Next
+	}
+}
 
 func (c *Client) catalog(query CatalogQuery) ([]Game, error) {
 	var all []Game
@@ -500,6 +532,21 @@ func (c *Client) LibraryAdd(author, slug string) error {
 
 func (c *Client) LibraryRemove(author, slug string) error {
 	return c.do(http.MethodDelete, "/v1/library/"+author+"/"+slug, nil, nil)
+}
+
+type LikeState struct {
+	Likes int  `json:"likes"`
+	Liked bool `json:"liked"`
+}
+
+func (c *Client) Like(author, slug string) (LikeState, error) {
+	var out LikeState
+	return out, c.do(http.MethodPut, "/v1/games/"+author+"/"+slug+"/like", nil, &out)
+}
+
+func (c *Client) Unlike(author, slug string) (LikeState, error) {
+	var out LikeState
+	return out, c.do(http.MethodDelete, "/v1/games/"+author+"/"+slug+"/like", nil, &out)
 }
 
 // Library lists the games on this account, newest addition first. It is the

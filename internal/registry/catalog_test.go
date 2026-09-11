@@ -1,6 +1,7 @@
 package registry
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -9,9 +10,57 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/aviorstudio/termcade/sdk"
 )
+
+func TestSearchCatalogFullTraversal(t *testing.T) {
+	requests := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Query().Get("q") != "blocks & é" || r.URL.Query().Get("abi") != "" {
+			t.Errorf("wrong search query: %s", r.URL.RawQuery)
+		}
+		requests++
+		page := CatalogPage{Games: []Game{{ID: "owner/duplicate"}, {ID: fmt.Sprintf("owner/game-%d", requests)}}}
+		if requests == 2 {
+			page.Games = nil
+		}
+		if requests < 23 {
+			page.Next = fmt.Sprint(requests)
+		}
+		json.NewEncoder(w).Encode(page)
+	}))
+	defer server.Close()
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	games, err := New(server.URL, "").WithContext(ctx).SearchCatalog(" blocks & é ")
+	if err != nil || requests != 23 || len(games) != 23 {
+		t.Fatalf("games=%d requests=%d err=%v", len(games), requests, err)
+	}
+}
+
+func TestSearchCatalogRejectsCursorCyclesAndCancellation(t *testing.T) {
+	requests := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requests++
+		cursor := "A"
+		if requests%2 == 0 {
+			cursor = "B"
+		}
+		json.NewEncoder(w).Encode(CatalogPage{Games: []Game{{ID: "owner/partial"}}, Next: cursor})
+	}))
+	defer server.Close()
+	games, err := New(server.URL, "").SearchCatalog("x")
+	if err == nil || games != nil || requests != 3 {
+		t.Fatalf("cycle returned partial success: %v %v %d", games, err, requests)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	if _, err := New(server.URL, "").WithContext(ctx).SearchCatalog("x"); err == nil {
+		t.Fatal("canceled search succeeded")
+	}
+}
 
 // The catalog is paged, so browsing the marketplace is several requests. The
 // failure this guards against is quiet: a client that stops early shows a
@@ -178,6 +227,9 @@ func TestCatalogExampleDecodes(t *testing.T) {
 	}
 	if game.CreatedAt == "" || game.ReleasedAt == "" {
 		t.Errorf("timestamps did not decode: %+v", game)
+	}
+	if game.Likes != 0 {
+		t.Errorf("recorded likes = %d, want 0", game.Likes)
 	}
 }
 
