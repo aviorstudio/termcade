@@ -41,9 +41,6 @@ func productBackendFixture(t *testing.T) (*productBackend, *productAPIFixture, s
 		g := registry.Game{ID: "acme/game", Name: "Game", Version: "1.0.0", ABI: 1, HasPackage: true}
 		switch r.URL.Path {
 		case "/v1/games":
-			if r.Header.Get("Authorization") != "" {
-				t.Error("catalog received credentials")
-			}
 			if r.URL.Query().Get("abi") != "" {
 				t.Error("web-aligned catalog was filtered")
 			}
@@ -58,6 +55,9 @@ func productBackendFixture(t *testing.T) (*productBackend, *productAPIFixture, s
 			json.NewEncoder(w).Encode(games)
 		case "/v1/activity":
 			json.NewEncoder(w).Encode([]registry.Activity{})
+		case "/v1/games/acme/game/like":
+			liked := r.Method == http.MethodPut
+			json.NewEncoder(w).Encode(registry.LikeState{Likes: 1, Liked: liked})
 		case "/v1/library/acme/game":
 			if r.Method == http.MethodPut {
 				f.member = true

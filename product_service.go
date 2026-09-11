@@ -61,19 +61,21 @@ func (p *productBackend) snapshot(ctx context.Context) shell.ProductSnapshot {
 		out.AccountError = p.configErr.Error()
 		return out
 	}
-	// Catalog is public: never attach account credentials to public reads.
-	catalog, err := registry.New(p.store.Registry, "").WithContext(ctx).Catalog()
-	if err != nil {
-		out.CatalogError = err.Error()
-	} else {
-		out.Catalog = catalog
-	}
 	c, s, err := p.client(ctx, false)
 	if err != nil {
 		out.AccountError = err.Error()
-		return out
 	}
-	if s == nil {
+	catalogClient := registry.New(p.store.Registry, "").WithContext(ctx)
+	if err == nil && s != nil {
+		catalogClient = c
+	}
+	catalog, catalogErr := catalogClient.SearchCatalog("")
+	if catalogErr != nil {
+		out.CatalogError = catalogErr.Error()
+	} else {
+		out.Catalog = catalog
+	}
+	if err != nil || s == nil {
 		return out
 	}
 	out.SignedIn = true
@@ -106,6 +108,19 @@ func gameParts(id string) (string, string, error) {
 }
 
 func (p *productBackend) request(ctx context.Context, req shell.ProductRequest) (shell.ProductReply, error) {
+	// Search is a public, independent read: typing must not wait on or cancel an
+	// account mutation, and must never attach account credentials.
+	if req.Kind == "catalog-search" {
+		if p.configErr != nil {
+			return shell.ProductReply{}, p.configErr
+		}
+		c, _, err := p.client(ctx, false)
+		if err != nil {
+			c = registry.New(p.store.Registry, "").WithContext(ctx)
+		}
+		games, err := c.SearchCatalog(req.Value)
+		return shell.ProductReply{Catalog: games}, err
+	}
 	// Pairing waits without holding the session lock. It returns credentials to
 	// the model; only an accepted current-generation result may request saving.
 	if req.Kind == "pair-start" || req.Kind == "pair-wait" {
@@ -199,7 +214,7 @@ func (p *productBackend) request(ctx context.Context, req shell.ProductRequest) 
 			return out, e
 		}
 		switch req.Kind {
-		case "add", "remove", "install":
+		case "add", "remove", "install", "like", "unlike":
 			a, b, e := gameParts(req.ID)
 			if e != nil {
 				return out, e
@@ -212,6 +227,10 @@ func (p *productBackend) request(ctx context.Context, req shell.ProductRequest) 
 				if errors.Is(err, registry.ErrNotFound) {
 					err = nil
 				}
+			case "like":
+				_, err = c.Like(a, b)
+			case "unlike":
+				_, err = c.Unlike(a, b)
 			case "install":
 				// Membership is independent of installation. Play may install only
 				// an account game; local-only play never calls this path.

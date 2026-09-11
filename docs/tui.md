@@ -7,14 +7,27 @@ backend behavior, game ABI, and sandbox limits are not changed by this shell.
 ## Navigation and focus
 
 - Marketplace is the initial destination, including while signed out.
-- Tab/Shift+Tab cycles navigation, content, and actions. Arrows select within the
-  focused area; Enter activates. A normal game row opens details; Continue
-  Playing and the explicit Play action launch the game.
-- At 120 or more columns the sidebar takes 22 columns. At smaller widths it is
-  an on-demand overlay. Non-game content is centered and capped at 100 columns.
+- The navigation's Sign in / @username item is pinned at the bottom of the
+  rail. Navigation has no local divider or key legend; the shared footer swaps
+  to ↓ Tab · ↑ Shift+Tab · ✓ Enter · ✕ Esc while nav is focused. Library and installed
+  offline games remain accessible
+  while signed out; a long library scrolls without displacing the account row.
+- Ctrl+N directly toggles navigation and page content, even if an action
+  previously had focus. It never steps through the footer. Tab is next and
+  Shift+Tab is previous within the focused list, action row, form, dialog, or
+  pause menu. They do not open or close navigation. Arrows still select
+  within the focused area; Enter activates. A
+  normal game row opens details; Continue Playing and the explicit Play action
+  launch the game.
+- When open at 120 or more columns, navigation reserves 22 columns and pushes
+  the content. On smaller terminals it overlays without reflowing the content.
+  In both cases it stops above the main divider so page actions and keyboard
+  hints stay fully visible. Closed navigation reserves no width. Non-game
+  content stays centered and capped at 100 columns. If pushing would squeeze a
+  fixed-size game, navigation uses the overlay instead, even on a wide terminal.
 - The supported baseline is 80×24. Lists and long text scroll. Page Up/Down
   moves list selection with the viewport, so actions do not target a hidden row.
-- During active gameplay, keys belong to the game. Esc/P pauses; Tab can then
+- During active gameplay, keys belong to the game. Esc/P pauses; Ctrl+N can then
   focus navigation. Leaving Play closes the guest and records an abandoned run.
 - Pause retains Resume, Restart, pixel selection for the next start, and Leave
   Play. Pixel changes do not stretch or mutate an existing guest framebuffer.
@@ -22,8 +35,29 @@ backend behavior, game ABI, and sandbox limits are not changed by this shell.
   left/right, Home/End, Backspace/Delete and Ctrl+U edit a field. Enter activates
   a button rather than silently submitting from a text field.
 - Ctrl+C quits from every state. Escape dismisses/backtracks outside gameplay.
+- Product pages/states share one bottom-anchored footer that spans the full
+  terminal width. Its contents follow the focused context (navigation, page
+  actions, forms, gameplay). Keyboard hints use ↓ Tab, ↑ Shift+Tab, ✓ Enter,
+  and ✕ Esc. Marketplace/library game actions are keyed directly: ✕ Esc Back,
+  ↻ R Refresh, ▶ P Play, + A Add, and ⌫ U Uninstall.
+  Pause choices and game hints are in this footer rather than over the artwork.
+  Footer rows are reserved before content is laid out; games keep their fixed
+  cell dimensions and show a too-small notice rather than being cropped.
 
 ## Library and package actions
+
+Marketplace and Library have a Search row at the top of the list. Tab/Shift+Tab
+or arrows move onto it to type; `/` jumps there. Enter, Tab, or down moves to
+results without clearing. Esc is still Back. Ctrl+U clears the query. Queries
+survive visiting details or another destination during this TUI session.
+
+Marketplace uses server name/slug/description search (not owner), debounced by
+300ms, and follows cursors through the full result set. An API/network failure
+shows an error rather than a complete-looking partial list. The API accepts at
+most 64 UTF-8 bytes after trimming. Library immediately filters its view using
+the same fields when metadata is available, including installed local-only games.
+Neither sidebar games nor shared membership are filtered. Continue Playing is
+hidden while the query is nonblank; an empty filtered list says No matching games.
 
 Library is an ID-keyed union of account membership and installed packages.
 Installed versions are shown independently of the newest registry metadata.
@@ -69,6 +103,22 @@ no ID clear locally with a warning; the TUI never guesses another session to
 revoke. Account changes/expiry clear cached private member/session views.
 
 ## Local development pairing
+
+Choose the bottom Sign in item (or Sign in within Settings) to open a centered
+dialog over the current screen. The dialog title is Sign in. Below it, the
+pairing URL, a blank line, the pairing code, and Open browser / Cancel options
+are centered. The URL is `/pair/ABCD-EFGH` so the pair page can look the device
+up automatically; it remains an OSC-8 hyperlink in terminals that support
+clicks. Approval in the browser is still explicit. Open browser is explicit,
+and passwords/email codes are never entered in the TUI. Tab or arrows select
+those options; Enter activates. Ctrl+N does nothing in the dialog. Esc
+closes it without navigating away. Successful sign-in also closes
+it. A paused game remains
+paused and open underneath. Very small terminals show a resize notice and
+accept only Esc/Ctrl+C until controls fit. Status sits above the divider; below
+it the hints are ↓ Tab, ↑ Shift+Tab, ✓ Enter, and ✕ Esc.
+Cancel stops waiting; if credential saving has begun, the shell reconciles
+actual state because a completed save cannot be undone by canceling its result.
 
 Use the actual API/app ports printed by `make dev` in the backend checkout:
 
