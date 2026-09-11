@@ -258,3 +258,19 @@ func TestRevokedCredentialIsNotReturnedAsSession(t *testing.T) {
 		t.Fatalf("revocation error = %v, want ErrLoginRequired", err)
 	}
 }
+
+func TestPairingURLWithCodeAttachesOnlyAValidUserCode(t *testing.T) {
+	base := "https://app.termca.de/pair"
+	got := PairingURLWithCode(base, " abcd-efgh ")
+	if got != base+"/ABCD-EFGH" {
+		t.Fatalf("got %q", got)
+	}
+	for _, code := range []string{"", "not-a-code", "ABCD-EFGH/../x", "https://evil.example"} {
+		if PairingURLWithCode(base, code) != base {
+			t.Fatalf("attached invalid code %q", code)
+		}
+	}
+	if PairingURLWithCode("https://user:pass@app.termca.de/pair", "ABCD-EFGH") != "https://user:pass@app.termca.de/pair" {
+		t.Fatal("credentials in pairing URL were preserved into a complete link")
+	}
+}

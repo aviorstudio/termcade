@@ -39,6 +39,7 @@ type ProductRequest struct {
 }
 
 type ProductReply struct {
+	Catalog     []registry.Game
 	Snapshot    *ProductSnapshot
 	Game        *registry.Game
 	Owner       *registry.HandleOwner
