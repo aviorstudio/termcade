@@ -322,7 +322,7 @@ func (m Model) updateKey(key string) (tea.Model, tea.Cmd) {
 func (m Model) quitToMenu() Model {
 	if m.productEnabled() {
 		m = m.closeProductGame()
-		m.app.loc = productLocation{Page: "library"}
+		m.app.loc = productLocation{Page: "marketplace"}
 		m.app.focus = 1
 		m.app.gameNav = false
 		return m

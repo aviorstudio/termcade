@@ -79,7 +79,12 @@ the auto-repeat heuristic.
 
 | Key | Action |
 | --- | --- |
-| Tab / Shift+Tab | focus navigation, page content, or actions; move between form controls |
+| Ctrl+N | toggle navigation |
+| Tab | next item, action, form control, or dialog button |
+| Shift+Tab | previous item, action, form control, or dialog button |
+| R / P / A / U | Refresh / Play / Add / Uninstall the selected game |
+| / (Marketplace/Library) | jump to the Search row |
+| Ctrl+U (search) | clear the current query |
 | ↑/↓ | select a row or pause-menu item |
 | ←/→ (actions) | select the focused action |
 | enter | activate a focused item/button; ordinary game rows open details |
@@ -94,10 +99,11 @@ the auto-repeat heuristic.
 | Ctrl+C | quit and save local scores |
 
 While a game runs, game inputs cannot operate the sidebar. Pause first, then
-Tab into navigation. The sidebar is 22 columns wide at 120+ terminal columns;
-below that it overlays the content on demand. Non-game content is capped at
-100 columns. Gameplay keeps its fixed cell footprint and hides the sidebar
-when needed to fit. See [TUI workflows](docs/tui.md) for the complete contract.
+Ctrl+N into navigation. When open, the 22-column sidebar pushes content at 120+
+terminal columns and overlays it on smaller terminals. Closing it restores the
+full content area. Non-game content is capped at 100 columns. Gameplay keeps
+its fixed cell footprint; navigation overlays rather than squeezing a game that
+would not fit beside it. See [TUI workflows](docs/tui.md) for the complete contract.
 
 High scores persist to `~/.config/termcade/scores.json`, and are yours whether
 or not you have an account — see [Your history](#your-history).
@@ -109,14 +115,24 @@ Library, owner/game pages, and account/settings destinations. Browsing is
 anonymous. Library joins account games with installed packages, with clear
 installation/membership badges and Continue Playing entries.
 
+Both lists have search by name, slug, or description (not owner). Marketplace
+searches the registry after 300ms without typing and follows all result pages;
+Library filters its displayed entries, including local-only games. Queries are
+remembered separately until cleared or the TUI exits. Searching hides Continue
+Playing, not sidebar games or account membership. Marketplace queries are limited
+by the API to 64 UTF-8 bytes after trimming.
+
 In the **TUI**, Add saves account membership without downloading. Play installs
 a missing compatible account game; healthy installed games remain playable
 offline. Remove from Library changes only account membership; Uninstall here
 removes only the local package, after confirmation. No automatic updates replace
 an existing local copy.
 
-Sign in from Settings without exiting the TUI: it shows the trusted pairing URL
-and one-time code, and opens a browser only when you choose Open browser.
+Sign in from the bottom nav item or Settings without exiting the TUI: a dialog
+centers the one-time code and trusted pairing URL (`/pair/ABCD-EFGH`, a
+clickable terminal link) and opens a browser only when you choose Open browser.
+The pair page looks up that code automatically after sign-in; approval stays
+explicit. Esc or Cancel returns to the underlying screen.
 Account authentication stays in the browser. Settings also supports handles,
 org/member administration, CLI-session revocation, account deletion, and
 revoke-then-clear sign-out. The normal pairing destination remains

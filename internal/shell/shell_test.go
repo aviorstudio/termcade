@@ -407,6 +407,9 @@ func drain(t *testing.T, m Model, cmd tea.Cmd) Model {
 		var mm tea.Model
 		mm, cmd = m.Update(msg)
 		m = mm.(Model)
+		if _, ok := msg.(tickMsg); ok {
+			break
+		}
 	}
 	return m
 }
