@@ -1,0 +1,36 @@
+{
+  "version": 1,
+  "profile": "go-cli",
+  "commands": {
+    "install": [
+      "make",
+      "install"
+    ],
+    "lint": [
+      "make",
+      "lint"
+    ],
+    "test": [
+      "make",
+      "test"
+    ],
+    "build": [
+      "make",
+      "build"
+    ],
+    "check": [
+      "make",
+      "check"
+    ],
+    "clean": [
+      "make",
+      "clean"
+    ],
+    "dev": {
+      "unsupported": "Interactive arcade sessions require caller-owned terminal and account configuration."
+    },
+    "stop": {
+      "unsupported": "Interactive arcade sessions require caller-owned terminal and account configuration."
+    }
+  }
+}

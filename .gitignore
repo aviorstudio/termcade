@@ -9,3 +9,6 @@ games/*/build/
 # output — regenerate with `go generate ./internal/starter`.
 !internal/starter/packs/*.tcade
 game.wasm
+
+.artifacts/
+__pycache__/
