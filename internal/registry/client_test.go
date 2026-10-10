@@ -191,3 +191,9 @@ func TestClerkPublishingKeyUsesBearerWithoutBecomingLogin(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestLegacyPublishingKeysAreNotAccepted(t *testing.T) {
+	if IsPublishKey("tck_" + strings.Repeat("A", 43)) {
+		t.Fatal("legacy key accepted")
+	}
+}

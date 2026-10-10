@@ -241,8 +241,7 @@ termcade publish https://github.com/you/mygame v1.0.0 mygame.tcade
 For automated publishing, log in and run `termcade keys new <name> <username>`.
 The API asks Termcade's Clerk tenant to create an `ak_…` key restricted to that
 handle. Set it as `TERMCADE_TOKEN` when running `termcade publish`. Manage keys
-with `termcade keys list` and `termcade keys revoke <id>`. Existing `tck_…` keys
-remain usable during the transition. Publishing keys cannot sign in or manage
+with `termcade keys list` and `termcade keys revoke <id>`. Publishing keys cannot sign in or manage
 accounts; browser-approved `termcade login` continues to use separate CLI sessions.
 
 The registry fetches that asset once, validates it against the same manifest

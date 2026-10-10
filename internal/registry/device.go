@@ -28,7 +28,7 @@ var (
 	userCodeRE   = regexp.MustCompile(`^[ABCDEFGHJKMNPQRSTUVWXYZ23456789]{4}-[ABCDEFGHJKMNPQRSTUVWXYZ23456789]{4}$`)
 	deviceCodeRE = regexp.MustCompile(`^tcd_[A-Za-z0-9_-]{43}$`)
 	cliTokenRE   = regexp.MustCompile(`^tcc_[A-Za-z0-9_-]{43}$`)
-	publishKeyRE = regexp.MustCompile(`^(tck_[A-Za-z0-9_-]{43}|ak_[A-Za-z0-9_-]{20,512})$`)
+	publishKeyRE = regexp.MustCompile(`^ak_[A-Za-z0-9_-]{20,512}$`)
 )
 
 func IsCLIToken(value string) bool   { return cliTokenRE.MatchString(value) }
