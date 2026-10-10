@@ -265,7 +265,7 @@ func (c *Client) doContext(ctx context.Context, method, path string, body, out a
 }
 
 func (c *Client) authorizationValue() string {
-	if strings.HasPrefix(c.token, "tcc_") || strings.HasPrefix(c.token, "tck_") || strings.HasPrefix(c.token, "ak_") {
+	if strings.HasPrefix(c.token, "tcc_") || strings.HasPrefix(c.token, "ak_") {
 		return "Bearer " + c.token
 	}
 	return c.token
