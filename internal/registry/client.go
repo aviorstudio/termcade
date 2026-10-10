@@ -265,7 +265,7 @@ func (c *Client) doContext(ctx context.Context, method, path string, body, out a
 }
 
 func (c *Client) authorizationValue() string {
-	if strings.HasPrefix(c.token, "tcc_") || strings.HasPrefix(c.token, "tck_") {
+	if strings.HasPrefix(c.token, "tcc_") || strings.HasPrefix(c.token, "tck_") || strings.HasPrefix(c.token, "ak_") {
 		return "Bearer " + c.token
 	}
 	return c.token
@@ -621,7 +621,7 @@ type Key struct {
 	Token    string `json:"token,omitempty"`
 }
 
-// CreateKey mints a publish key scoped to one handle.
+// CreateKey requests a Clerk publishing key scoped to one handle.
 func (c *Client) CreateKey(name, username string) (Key, error) {
 	var out Key
 	body := map[string]string{"name": name, "username": username}
