@@ -173,3 +173,21 @@ func TestResolveSendsTheABIAndNoVersion(t *testing.T) {
 		t.Errorf("resolve still asks for a version: %v", stub.resolveQuery)
 	}
 }
+
+func TestClerkPublishingKeyUsesBearerWithoutBecomingLogin(t *testing.T) {
+	token := "ak_" + strings.Repeat("A", 48)
+	if !IsPublishKey(token) || IsCLIToken(token) {
+		t.Fatal("publishing key classified as login or refused")
+	}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/v1/publish" || r.Header.Get("Authorization") != "Bearer "+token {
+			t.Error("publishing key sent incorrectly")
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"id":"owner/game","version":"1.0.0"}`))
+	}))
+	defer server.Close()
+	if _, err := New(server.URL, token).Publish("https://github.com/owner/game", "v1.0.0", "game.tcade"); err != nil {
+		t.Fatal(err)
+	}
+}
