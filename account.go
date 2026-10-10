@@ -95,8 +95,7 @@ func cmdKeys(args []string) error {
 		if err != nil {
 			return err
 		}
-		// Printed once because it exists once. The registry stores a hash and
-		// cannot produce this again, so anything that loses it needs a new key.
+		// Reveal the Clerk-issued secret once; lists never return secrets.
 		fmt.Printf("created %q, publishing as %s\n\n  %s\n\n", key.Name, key.Username, key.Token)
 		fmt.Fprintln(os.Stderr,
 			"that token is shown once and cannot be recovered — put it somewhere safe now")
