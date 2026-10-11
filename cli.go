@@ -2,12 +2,14 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strings"
 
 	"github.com/aviorstudio/termcade/internal/plugin"
@@ -45,6 +47,14 @@ usage:
   termcade dev new <id> [dir]  start your own game (id is author/slug)
   termcade dev build [dir]     build a game directory into a .tcade package
   termcade dev install <file>  install a local .tcade while developing
+
+  termcade godot init <project> install the Godot Termcade export target
+  termcade godot export <project> <game.tgd>
+                               validate and export a Godot 2D game
+  termcade godot play --trusted <game.tgd>
+                               play a local Godot game inside the terminal
+  termcade godot capture --trusted <game.tgd> <frame.png>
+                               capture a terminal-resolution frame for agents
 
 This arcade is also the whole dev kit: dev new, hack, dev build, dev install,
 play. See docs/sdk.md to get started.
@@ -93,6 +103,8 @@ func runCommand(args []string) bool {
 		default:
 			err = fmt.Errorf("unknown dev subcommand; try: termcade dev new <author/slug> · termcade dev build [dir] · termcade dev install <file>")
 		}
+	case "godot":
+		err = cmdGodot(args[1:])
 	case "version", "-v", "--version":
 		fmt.Println("termcade", resolveVersion())
 	case "help", "-h", "--help":
@@ -102,6 +114,10 @@ func runCommand(args []string) bool {
 		os.Exit(2)
 	}
 	if err != nil {
+		if args[0] == "godot" && slices.Contains(args, "--json") {
+			_ = json.NewEncoder(os.Stdout).Encode(map[string]any{"ok": false, "error": err.Error(), "runtime": "godot-terminal-2d-v1"})
+			os.Exit(1)
+		}
 		fmt.Fprintln(os.Stderr, "termcade:", err)
 		os.Exit(1)
 	}
