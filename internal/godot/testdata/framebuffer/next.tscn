@@ -1,0 +1,7 @@
+[gd_scene format=3]
+[ext_resource type="Script" path="res://next.gd" id="1"]
+[node name="Next" type="ColorRect"]
+color = Color(1,0,1,1)
+offset_right = 160.0
+offset_bottom = 80.0
+script = ExtResource("1")
