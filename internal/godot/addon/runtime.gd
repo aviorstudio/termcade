@@ -1,15 +1,13 @@
 extends SceneTree
 
-const Renderer = preload("renderer.gd")
-const PROTOCOL := 1
+const PROTOCOL := 2
 const MAX_REQUEST := 65536
 var peer := StreamPeerTCP.new()
-var renderer := Renderer.new()
-var scene: Node
+var started := false
 var width := 144
 var height := 40
+var pixel_aspect := 0.5
 var input_bytes := PackedByteArray()
-var world_size: Vector2
 var pressed_codes: Array[int] = []
 
 func _initialize() -> void:
@@ -25,7 +23,9 @@ func _initialize() -> void:
 	while peer.get_status() == StreamPeerTCP.STATUS_CONNECTING:
 		peer.poll()
 		OS.delay_usec(1000)
-	world_size = Vector2(ProjectSettings.get_setting("display/window/size/viewport_width", 640), ProjectSettings.get_setting("display/window/size/viewport_height", 360))
+	# Preserve the game's viewport and UI layout; only the captured image is resized.
+	root.disable_3d = false
+	RenderingServer.render_loop_enabled = false
 	_send({"protocol": PROTOCOL, "token": args[1], "title": ProjectSettings.get_setting("application/config/name", "Godot game")})
 
 func _process(_delta: float) -> bool:
@@ -54,12 +54,13 @@ func _process(_delta: float) -> bool:
 func _request(request: Dictionary) -> bool:
 	if request.get("op") == "close":
 		return true
+	width = int(request.get("width", width))
+	height = int(request.get("height", height))
+	pixel_aspect = float(request.get("pixel_aspect", pixel_aspect))
+	if width < 1 or width > 600 or height < 1 or height > 360 or pixel_aspect <= 0 or pixel_aspect > 2:
+		_send({"error": "invalid framebuffer dimensions"})
+		return true
 	if request.get("op") == "reset":
-		width = int(request.get("width", 144))
-		height = int(request.get("height", 40))
-		if width < 1 or width > 600 or height < 1 or height > 360:
-			_send({"error": "invalid framebuffer dimensions"})
-			return true
 		for code in pressed_codes:
 			var release := InputEventKey.new()
 			release.keycode = code
@@ -67,16 +68,18 @@ func _request(request: Dictionary) -> bool:
 			Input.parse_input_event(release)
 		pressed_codes.clear()
 		Input.flush_buffered_events()
-		if scene != null:
-			scene.free()
+		if is_instance_valid(current_scene):
+			current_scene.free()
 		var packed := load(ProjectSettings.get_setting("application/run/main_scene", "")) as PackedScene
 		if packed == null:
 			_send({"error": "cannot load main scene"})
 			return true
-		scene = packed.instantiate()
+		paused = false
+		var scene := packed.instantiate()
 		root.add_child(scene)
 		current_scene = scene
-	elif request.get("op") != "step" or scene == null:
+		started = true
+	elif request.get("op") != "step" or not started:
 		_send({"error": "expected reset or step"})
 		return true
 	for key in request.get("keys", []):
@@ -95,12 +98,26 @@ func _request(request: Dictionary) -> bool:
 	return false
 
 func _send_frame() -> void:
-	var failures := Renderer.validate(scene)
-	if not failures.is_empty():
-		_send({"error": "; ".join(failures)})
+	# Godot renders every node, including cameras, UI, shaders and 3D. The
+	# private display never appears on the desktop; no node emulation is used.
+	RenderingServer.force_draw(false, 1.0 / 60.0)
+	var frame := root.get_texture().get_image()
+	if frame == null or frame.is_empty():
+		_send({"error": "Godot did not produce a rendered viewport"})
 		quit(2)
 		return
-	var frame: Image = renderer.render(scene, width, height, world_size)
+	# Character cells are taller than they are wide. Fit the game's aspect
+	# ratio into the available terminal space instead of stretching its UI.
+	var scale := minf(width * pixel_aspect / frame.get_width(), float(height) / frame.get_height())
+	var fitted := Vector2i(maxi(1, roundi(frame.get_width() * scale / pixel_aspect)), maxi(1, roundi(frame.get_height() * scale)))
+	fitted.x = mini(fitted.x, width)
+	fitted.y = mini(fitted.y, height)
+	frame.resize(fitted.x, fitted.y, Image.INTERPOLATE_LANCZOS)
+	frame.convert(Image.FORMAT_RGB8)
+	var output := Image.create(width, height, false, Image.FORMAT_RGB8)
+	output.fill(Color.BLACK)
+	output.blit_rect(frame, Rect2i(Vector2i.ZERO, fitted), Vector2i((width - fitted.x) / 2, (height - fitted.y) / 2))
+	frame = output
 	_send({"width": width, "height": height, "pixels": Marshalls.raw_to_base64(frame.get_data())})
 
 func _send(value: Dictionary) -> void:

@@ -49,8 +49,23 @@ func InstallAddon(ctx context.Context, bin, project string) error {
 	if err := writeAddon(project); err != nil {
 		return err
 	}
-	log, err := runEngine(ctx, bin, "--headless", "--path", project,
-		"--script", "res://addons/termcade/setup.gd")
+	// Setup reads config files in an empty bootstrap project. Loading the
+	// caller's SceneTree before import would execute autoloads against missing
+	// class/texture caches, and starting an editor script races its scan thread.
+	project, err := filepath.Abs(project)
+	if err != nil {
+		return err
+	}
+	bootstrap, err := os.MkdirTemp("", "termcade-godot-setup-")
+	if err != nil {
+		return err
+	}
+	defer os.RemoveAll(bootstrap)
+	if err := os.WriteFile(filepath.Join(bootstrap, "project.godot"), []byte("config_version=5\n"), 0o644); err != nil {
+		return err
+	}
+	log, err := runEngine(ctx, bin, "--headless", "--path", bootstrap,
+		"--script", filepath.Join(project, "addons", "termcade", "setup.gd"), "--", project)
 	if err != nil {
 		return err
 	}
@@ -114,6 +129,12 @@ func Export(ctx context.Context, bin, project, destination string) error {
 		return err
 	}
 	if err := InstallAddon(ctx, bin, stage); err != nil {
+		return err
+	}
+	// A clean Godot import can log missing cached textures while loading a
+	// custom theme before the importer runs. Bootstrap once, then require a
+	// second clean pass; persistent script/resource errors still fail export.
+	if _, err := runEngineProcess(ctx, false, bin, "--headless", "--quiet", "--editor", "--path", stage, "--import"); err != nil {
 		return err
 	}
 	if _, err := runEngine(ctx, bin, "--headless", "--quiet", "--editor", "--path", stage, "--import"); err != nil {
@@ -216,6 +237,10 @@ func (log *engineLog) snapshot() (string, bool) {
 }
 
 func runEngine(ctx context.Context, bin string, args ...string) (string, error) {
+	return runEngineProcess(ctx, true, bin, args...)
+}
+
+func runEngineProcess(ctx context.Context, requireClean bool, bin string, args ...string) (string, error) {
 	ctx, cancel := context.WithTimeout(ctx, 2*time.Minute)
 	defer cancel()
 	cmd := exec.CommandContext(ctx, bin, args...)
@@ -230,7 +255,7 @@ func runEngine(ctx context.Context, bin string, args ...string) (string, error) 
 	cmd.Stdout, cmd.Stderr = log, log
 	err = cmd.Run()
 	output, failed := log.snapshot()
-	if err != nil || failed {
+	if err != nil || (requireClean && failed) {
 		return output, fmt.Errorf("Godot command failed (%v): %s", err, output)
 	}
 	return output, nil

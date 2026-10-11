@@ -20,7 +20,7 @@ import (
 	"github.com/aviorstudio/termcade/sdk"
 )
 
-const godotUsage = "usage: termcade godot init <project> | export [--json] <project> <game.tgd> | play --trusted <game.tgd> | capture --trusted [--frames N] [--input replay.json] <game.tgd> <frame.png>"
+const godotUsage = "usage: termcade godot init <project> | export [--json] <project> <game.tgd> | play --trusted <game.tgd> | capture --trusted [--columns N] [--rows N] [--frames N] [--input replay.json] <game.tgd> <frame.png>"
 
 func cmdGodot(args []string) error {
 	if len(args) == 0 {
@@ -30,6 +30,8 @@ func cmdGodot(args []string) error {
 	options.SetOutput(io.Discard)
 	trusted := options.Bool("trusted", false, "execute a local project as native code")
 	machine := options.Bool("json", false, "emit structured results")
+	columns := options.Int("columns", 72, "capture width in terminal columns")
+	rows := options.Int("rows", 20, "capture height in terminal rows")
 	frames := options.Int("frames", 1, "number of simulation frames to capture")
 	input := options.String("input", "", "JSON replay: array of {frame,code,down}")
 	if err := options.Parse(args[1:]); err != nil {
@@ -77,7 +79,11 @@ func cmdGodot(args []string) error {
 			return err
 		}
 		defer runtime.Close()
-		canvas := sdk.NewCanvas(72, 40, sdk.Black, pixelShape())
+		shape := pixelShape()
+		if *columns < 1 || *columns > 600/shape.Cols || *rows < 1 || *rows > 360/shape.Rows {
+			return fmt.Errorf("capture dimensions exceed the framebuffer limit")
+		}
+		canvas := sdk.NewCanvas(*columns, *rows*2, sdk.Black, shape)
 		width, height := canvas.PixelSize()
 		pixels, err := runtime.Reset(width, height)
 		if err != nil {
@@ -100,7 +106,7 @@ func cmdGodot(args []string) error {
 
 func godotResult(machine bool, operation, artifact string) error {
 	if machine {
-		return json.NewEncoder(os.Stdout).Encode(map[string]any{"ok": true, "operation": operation, "artifact": artifact, "runtime": "godot-terminal-2d-v1", "godot": godot.EngineVersion})
+		return json.NewEncoder(os.Stdout).Encode(map[string]any{"ok": true, "operation": operation, "artifact": artifact, "runtime": "godot-terminal-framebuffer-v1", "godot": godot.EngineVersion})
 	}
 	fmt.Println("Godot terminal", operation+":", artifact)
 	return nil
@@ -144,7 +150,9 @@ func captureGodot(runtime *godot.Runtime, canvas *sdk.Canvas, frames int, input,
 				keys = append(keys, event.KeyEvent)
 			}
 		}
-		pixels, err := runtime.Step(keys)
+		width, height := canvas.PixelSize()
+		shape := canvas.Shape()
+		pixels, err := runtime.StepCanvas(keys, width, height, float64(shape.Rows)/float64(2*shape.Cols))
 		if err != nil {
 			return err
 		}
@@ -172,6 +180,7 @@ func captureGodot(runtime *godot.Runtime, canvas *sdk.Canvas, frames int, input,
 
 type godotTick struct{}
 type godotFrame struct {
+	canvas *sdk.Canvas
 	pixels []sdk.Color
 	err    error
 }
@@ -204,7 +213,7 @@ func (m godotPlayer) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 		m.width, m.height = msg.Width, msg.Height
 	case tea.KeyPressMsg:
 		switch msg.String() {
-		case "ctrl+c", "esc":
+		case "ctrl+c":
 			return m, tea.Quit
 		case "ctrl+p":
 			m.paused = !m.paused
@@ -237,12 +246,20 @@ func (m godotPlayer) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 					}
 				}
 			}
+			shape := m.canvas.Shape()
+			columns := min(m.width, 600/shape.Cols)
+			rows := min(m.height-2, 360/shape.Rows)
+			canvas := m.canvas
+			if canvas.W != columns || canvas.H != rows*2 {
+				canvas = sdk.NewCanvas(columns, rows*2, sdk.Black, shape)
+			}
 			keys := m.keys
 			m.keys = nil
 			m.busy = true
 			return m, func() tea.Msg {
-				pixels, err := m.runtime.Step(keys)
-				return godotFrame{pixels: pixels, err: err}
+				width, height := canvas.PixelSize()
+				pixels, err := m.runtime.StepCanvas(keys, width, height, float64(shape.Rows)/float64(2*shape.Cols))
+				return godotFrame{canvas: canvas, pixels: pixels, err: err}
 			}
 		}
 		return m, godotNextTick()
@@ -250,6 +267,7 @@ func (m godotPlayer) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 		m.busy = false
 		m.err = msg.err
 		if msg.err == nil {
+			m.canvas = msg.canvas
 			copy(m.canvas.Pix(), msg.pixels)
 		}
 		return m, godotNextTick()
@@ -262,7 +280,7 @@ func (m godotPlayer) View() tea.View {
 	if m.width < 72 || m.height < 22 {
 		content = "Godot terminal preview needs at least 72 columns × 22 rows."
 	} else {
-		content = m.canvas.Render() + "\n" + safeGodotText(m.runtime.Title) + " · Ctrl+P pause · Esc exit"
+		content = m.canvas.Render() + "\n" + safeGodotText(m.runtime.Title) + " · Ctrl+P pause · Ctrl+C exit"
 		if m.paused {
 			content += " · PAUSED"
 		}
@@ -300,6 +318,8 @@ func godotKey(key string) int {
 		return special + 5
 	case "tab":
 		return special + 2
+	case "esc":
+		return special + 1
 	case "backspace":
 		return special + 4
 	case "space", " ":
