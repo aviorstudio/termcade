@@ -93,6 +93,9 @@ jobs:
       - name: Test
         uses: ./.github/actions/test
 
+      - name: Artifact Check
+        uses: ./.github/actions/artifact-check
+
       - name: Verify released binary version
         env:
           ARCHIVE: dist/termcade_Linux_x86_64.tar.gz

@@ -1,0 +1,8 @@
+name: Artifact Check
+description: Verify the shipping Linux archive's Godot export, replay and terminal player.
+runs:
+  using: composite
+  steps:
+    - name: Real Godot terminal artifact check
+      shell: bash
+      run: make artifact-check

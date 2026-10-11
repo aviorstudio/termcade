@@ -22,6 +22,10 @@
       "make",
       "check"
     ],
+    "artifact-check": [
+      "make",
+      "artifact-check"
+    ],
     "clean": [
       "make",
       "clean"
