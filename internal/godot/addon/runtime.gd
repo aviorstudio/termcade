@@ -9,6 +9,7 @@ var height := 40
 var pixel_aspect := 0.5
 var logical_size: Vector2i
 var native_resolution := false
+var smooth_sampling := true
 var input_bytes := PackedByteArray()
 var pressed_codes: Array[int] = []
 
@@ -30,6 +31,7 @@ func _initialize() -> void:
 	if logical_size.x <= 0 or logical_size.y <= 0:
 		logical_size = root.size
 	native_resolution = OS.get_environment("TERMCADE_GODOT_FULL_RES") == "1"
+	smooth_sampling = OS.get_environment("TERMCADE_GODOT_SAMPLING") != "fast"
 	# Keep authored coordinates and layout while rendering only the pixels
 	# the terminal can show. Native resolution remains available for games
 	# whose scripts or shaders depend on the original render target size.
@@ -74,7 +76,7 @@ func _request(request: Dictionary) -> bool:
 		_send({"error": "invalid framebuffer dimensions"})
 		return true
 	if not native_resolution:
-		var scale := minf(1.0, minf(float(width) / logical_size.x, float(height) / pixel_aspect / logical_size.y))
+		var scale := minf(1.0, minf(float(width) / logical_size.x, float(height) / pixel_aspect / logical_size.y) * (2.0 if smooth_sampling else 1.0))
 		var render_size := Vector2i(maxi(1, roundi(logical_size.x * scale)), maxi(1, roundi(logical_size.y * scale)))
 		if root.size != render_size:
 			root.size = render_size
@@ -141,7 +143,10 @@ func _capture_frame(text_state: Dictionary) -> void:
 	var fitted := Vector2i(maxi(1, roundi(frame.get_width() * scale / pixel_aspect)), maxi(1, roundi(frame.get_height() * scale)))
 	fitted.x = mini(fitted.x, width)
 	fitted.y = mini(fitted.y, height)
-	frame.resize(fitted.x, fitted.y, Image.INTERPOLATE_BILINEAR)
+	# Render two samples across each capture pixel and average the footprint.
+	# Bilinear alone samples too little of a downscaled moving background,
+	# causing fine edges and textures to flicker between terminal cells.
+	frame.resize(fitted.x, fitted.y, Image.INTERPOLATE_TRILINEAR if smooth_sampling else Image.INTERPOLATE_BILINEAR)
 	frame.convert(Image.FORMAT_RGB8)
 	var output := Image.create(width, height, false, Image.FORMAT_RGB8)
 	output.fill(Color.BLACK)

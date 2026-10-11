@@ -1,4 +1,4 @@
-<!-- Generated from private documentation source. Do not edit directly. Source SHA256: f1c8b2d71c408ebd2ab269ada9f402cdd8891a15b990dcfa2e3453778338583d -->
+<!-- Generated from private documentation source. Do not edit directly. Source SHA256: 54c6177dcd6dd1a39191a55fc5ccf470cbcc6c0ea5aafa0efe781aee2ecc8de2 -->
 
 # termcade
 
@@ -332,8 +332,12 @@ support `--json` for success and failure results. Flags precede positional paths
 The new framebuffer protocol requires newly exported packages; re-export packages
 created by the earlier software-node prototype.
 
-Godot renders near the terminal's pixel resolution while retaining the authored
-logical coordinates and UI layout. Final conversion uses bilinear filtering.
+Godot renders at up to twice the terminal pixel resolution while retaining the
+authored logical coordinates and UI layout. Mipmap-based downsampling averages
+fine background detail to reduce shimmer while the camera moves, especially in
+small terminals. Set `TERMCADE_GODOT_SAMPLING=fast` for the earlier lower-cost
+bilinear rendering, or `smooth` for the default. Re-export existing packages to
+include the sampling change.
 For games with resolution-dependent shaders or viewport logic, set
 `TERMCADE_GODOT_FULL_RES=1` to keep the original render target. Re-export older
 packages to get this optimization. The player counts rendering and transfer time
