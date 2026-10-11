@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"math"
 	"net"
 	"os"
 	"os/exec"
@@ -28,7 +29,19 @@ type KeyEvent struct {
 	Down bool `json:"down"`
 }
 
+// TextRun describes an axis-aligned UI control in framebuffer pixel coordinates.
+type TextRun struct {
+	X, Y, W, H float64
+	Value      string     `json:"value"`
+	Align      int        `json:"align"`
+	Vertical   int        `json:"vertical"`
+	Color      [3]uint8   `json:"color"`
+	Clip       [4]float64 `json:"clip"`
+	Block      bool       `json:"block"`
+}
+
 type Frame struct {
+	Text         []TextRun        `json:"text"`
 	Width        int              `json:"width"`
 	Height       int              `json:"height"`
 	Pixels       string           `json:"pixels"`
@@ -49,6 +62,7 @@ type Runtime struct {
 	done           chan struct{}
 	close          sync.Once
 	temp           string
+	LastText       []TextRun
 	LastRenderSize [2]int
 	LastFrameTimes map[string]int64
 	Title          string
@@ -203,6 +217,7 @@ func (r *Runtime) exchange(request any, budget time.Duration) ([]sdk.Color, erro
 			if err == nil {
 				r.LastFrameTimes = frame.Timings
 				r.LastRenderSize = [2]int{frame.RenderWidth, frame.RenderHeight}
+				r.LastText = frame.Text
 				pixels, decodeErr := decodeFrame(frame, r.width, r.height)
 				_, failed := r.log.snapshot()
 				if decodeErr == nil && !failed {
@@ -226,6 +241,24 @@ func decodeFrame(frame Frame, width, height int) ([]sdk.Color, error) {
 	}
 	if width < 1 || height < 1 || width > 600 || height > 360 || frame.Width != width || frame.Height != height {
 		return nil, fmt.Errorf("Godot framebuffer dimensions changed")
+	}
+	if len(frame.Text) > 512 {
+		return nil, fmt.Errorf("too many Godot text controls")
+	}
+	textBytes := 0
+	for _, text := range frame.Text {
+		textBytes += len(text.Value)
+		if textBytes > 65536 || text.Align < 0 || text.Align > 3 || text.Vertical < 0 || text.Vertical > 3 {
+			return nil, fmt.Errorf("invalid Godot text metadata")
+		}
+		for _, value := range []float64{text.X, text.Y, text.W, text.H, text.Clip[0], text.Clip[1], text.Clip[2], text.Clip[3]} {
+			if math.IsNaN(value) || math.IsInf(value, 0) || math.Abs(value) > 100000 {
+				return nil, fmt.Errorf("invalid Godot text coordinates")
+			}
+		}
+		if len(text.Value) > 16384 || text.W < 0 || text.H < 0 || text.W > 100000 || text.H > 100000 || text.X < -100000 || text.X > 100000 || text.Y < -100000 || text.Y > 100000 {
+			return nil, fmt.Errorf("invalid Godot text control")
+		}
 	}
 	want := width * height * 3
 	if len(frame.Pixels) != base64.StdEncoding.EncodedLen(want) {
