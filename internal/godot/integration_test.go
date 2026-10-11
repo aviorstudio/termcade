@@ -229,7 +229,7 @@ func TestGodotNativeRenderingAndSceneTransitions(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	for name, target := range map[string]sdk.Color{"custom draw": 0xff0000, "canvas shader": 0x00ff00, "animated sprite": 0x0000ff, "3D viewport": 0x00ffff, "UI text": 0xffffff} {
+	for name, target := range map[string]sdk.Color{"custom draw": 0xff0000, "canvas shader": 0x00ff00, "animated sprite": 0x0000ff, "3D viewport": 0x00ffff} {
 		count := 0
 		for _, pixel := range pixels {
 			pr, pg, pb := pixel.RGB()
@@ -241,6 +241,20 @@ func TestGodotNativeRenderingAndSceneTransitions(t *testing.T) {
 		if count < 10 {
 			t.Errorf("%s did not render: %d matching pixels", name, count)
 		}
+	}
+	found := map[string]bool{}
+	for _, text := range r.LastText {
+		found[text.Value] = true
+	}
+	for y := 0; y < 24; y++ {
+		for x := 120; x < 160; x++ {
+			if pixels[y*160+x] == 0xffffff {
+				t.Fatal("semantic label was also rasterized")
+			}
+		}
+	}
+	if !found["UI"] || !found["Go"] {
+		t.Fatalf("native UI text not extracted: %+v", r.LastText)
 	}
 	// Low-resolution rendering preserves authored coordinates and gameplay.
 	if _, err = r.StepCanvas(nil, 80, 40, 1); err != nil {
