@@ -8,6 +8,7 @@ export PATH := $(CURDIR)/.artifacts/godot/bin:$(PATH)
 help:
 	@echo 'make check: five-platform archives, lint, race/consumer and real Godot terminal checks'
 install:
+	@command -v "$${TERMCADE_XVFB_BIN:-Xvfb}" >/dev/null || { echo "Install Xvfb and Mesa for Godot framebuffer previews (see README)."; exit 1; }
 	mise trust .mise.toml
 	mise install go python actionlint shellcheck
 	mise exec -- go mod download
