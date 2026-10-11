@@ -12,3 +12,6 @@ game.wasm
 
 .artifacts/
 __pycache__/
+.godot/
+*.tgd
+examples/godot/*/build/
