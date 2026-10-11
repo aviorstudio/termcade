@@ -3,6 +3,7 @@ package godot
 import (
 	"bufio"
 	"encoding/base64"
+	"math"
 	"os"
 	"path/filepath"
 	"strings"
@@ -83,5 +84,24 @@ func TestAddonDoesNotOverwriteAuthorChanges(t *testing.T) {
 	data, _ := os.ReadFile(file)
 	if string(data) != "author edits" {
 		t.Fatal("author edits lost")
+	}
+}
+
+func TestTextMetadataBounds(t *testing.T) {
+	valid := Frame{Width: 1, Height: 1, Pixels: "AAAA"}
+	cases := [][]TextRun{
+		make([]TextRun, 513),
+		{{Value: strings.Repeat("x", 16385)}},
+		{{X: math.NaN()}},
+		{{Clip: [4]float64{0, 0, math.Inf(1), 1}}},
+		{{W: -1}},
+		{{Align: 20}},
+	}
+	for _, texts := range cases {
+		frame := valid
+		frame.Text = texts
+		if _, err := decodeFrame(frame, 1, 1); err == nil {
+			t.Fatal("accepted unbounded text metadata")
+		}
 	}
 }

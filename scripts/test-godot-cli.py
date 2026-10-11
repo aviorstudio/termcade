@@ -35,6 +35,8 @@ def main():
             binary.chmod(0o755)
         project = work / "project"
         shutil.copytree("examples/godot/paddle", project, ignore=shutil.ignore_patterns(".godot", "build"))
+        scene = project / "main.tscn"
+        scene.write_text(scene.read_text() + '\n[node name="Caption" type="Label" parent="."]\noffset_left = 10.0\noffset_top = 10.0\noffset_right = 134.0\noffset_bottom = 34.0\ntext = "Readable caption"\n')
         pack = work / "paddle.tgd"
         environment = dict(os.environ, TERM="xterm-256color", COLORTERM="truecolor", TERMCADE_PIXELS="quad")
 
@@ -93,7 +95,7 @@ def main():
             raise AssertionError(f"terminal did not show {text!r}: {captured[-4000:]!r}")
 
         try:
-            until(b"Godot Terminal Paddle")
+            until(b"Readable caption")
             if b"\x1b[" not in captured or not any(block in captured for block in ("▀".encode(), "▄".encode(), "▘".encode(), "▝".encode(), "▖".encode(), "▗".encode(), "▚".encode(), "▞".encode())):
                 raise AssertionError("no terminal block framebuffer appeared")
             os.write(master, b"\x1b[C")

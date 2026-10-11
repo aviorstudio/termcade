@@ -101,7 +101,7 @@ func cmdGodot(args []string) error {
 		if args[0] == "benchmark" {
 			return benchmarkGodot(runtime, canvas, *frames, *warmup, *input, *machine)
 		}
-		model := godotPlayer{runtime: runtime, canvas: canvas, held: map[int]int{}}
+		model := godotPlayer{runtime: runtime, canvas: canvas, text: append([]godot.TextRun(nil), runtime.LastText...), held: map[int]int{}}
 		_, err = tea.NewProgram(model).Run()
 		return err
 	default:
@@ -196,6 +196,7 @@ type godotFrame struct {
 	started time.Time
 	canvas  *sdk.Canvas
 	pixels  []sdk.Color
+	text    []godot.TextRun
 	err     error
 }
 
@@ -204,6 +205,7 @@ type godotFrame struct {
 type godotPlayer struct {
 	runtime *godot.Runtime
 	canvas  *sdk.Canvas
+	text    []godot.TextRun
 	held    map[int]int
 	keys    []godot.KeyEvent
 	ticks   int
@@ -280,7 +282,7 @@ func (m godotPlayer) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 			return m, func() tea.Msg {
 				width, height := canvas.PixelSize()
 				pixels, err := m.runtime.StepCanvas(keys, width, height, float64(shape.Rows)/float64(2*shape.Cols))
-				return godotFrame{started: started, canvas: canvas, pixels: pixels, err: err}
+				return godotFrame{started: started, canvas: canvas, pixels: pixels, text: append([]godot.TextRun(nil), m.runtime.LastText...), err: err}
 			}
 		}
 		return m, godotNextTick(time.Now())
@@ -289,6 +291,7 @@ func (m godotPlayer) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 		m.err = msg.err
 		if msg.err == nil {
 			m.canvas = msg.canvas
+			m.text = msg.text
 			copy(m.canvas.Pix(), msg.pixels)
 		}
 		return m, godotNextTick(msg.started)
@@ -301,7 +304,7 @@ func (m godotPlayer) View() tea.View {
 	if m.width < 72 || m.height < 22 {
 		content = "Godot terminal preview needs at least 72 columns × 22 rows."
 	} else {
-		content = m.canvas.Render() + "\n" + safeGodotText(m.runtime.Title) + " · Ctrl+P pause · Ctrl+C exit"
+		content = renderGodotText(m.canvas, m.text) + "\n" + safeGodotText(m.runtime.Title) + " · Ctrl+P pause · Ctrl+C exit"
 		if m.paused {
 			content += " · PAUSED"
 		}
@@ -388,7 +391,7 @@ func benchmarkGodot(runtime *godot.Runtime, canvas *sdk.Canvas, frames, warmup i
 		}
 		copy(canvas.Pix(), pixels)
 		started = time.Now()
-		rendered := canvas.Render()
+		rendered := renderGodotText(canvas, runtime.LastText)
 		cellMS += float64(time.Since(started).Microseconds()) / 1000 / float64(frames)
 		ansiBytes += len(rendered)
 	}

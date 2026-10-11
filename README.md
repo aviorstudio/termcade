@@ -1,4 +1,4 @@
-<!-- Generated from private documentation source. Do not edit directly. Source SHA256: f43ce6ca2cfa1100e4921d4b4dff9e3a809550b934541b2ebf2063f4f390c538 -->
+<!-- Generated from private documentation source. Do not edit directly. Source SHA256: f1c8b2d71c408ebd2ab269ada9f402cdd8891a15b990dcfa2e3453778338583d -->
 
 # termcade
 
@@ -345,13 +345,17 @@ exits. Escape goes to the game so its menus work. Arrow keys, letters, space, ta
 backspace and enter are translated to Godot key events. Terminals with release
 reporting supply exact held keys; other terminals use an auto-repeat timeout.
 The preview needs at least 72 columns by 22 rows. A larger terminal and smaller
-font give games with detailed UI more readable pixels. Game labels are rendered
-pixels rather than selectable terminal text.
+font give detailed interfaces more room. Standard, axis-aligned Godot `Label`
+and `Button` text is drawn as real terminal characters over the game background,
+with alignment, wrapping and parent clipping. Re-export existing packages to
+include this feature. Rich text, rotated text, subviewport text, custom drawing
+and lettering baked into textures retain raster rendering. Terminal fonts replace
+the game's font, and crowded layouts can truncate text.
 
 Capture accepts `--input replay.json`, an array of `{ "frame": 1, "code": 4194321,
 "down": true }` events using Godot key codes; `4194321` is the right arrow.
 Each capture starts a fresh engine. Output is a PNG of the framebuffer before
-terminal character conversion. Defaults are 72 columns and 20 rows. Capture
+terminal character conversion; native text overlays are omitted from PNGs. Defaults are 72 columns and 20 rows. Capture
 resolution is bounded to 600 × 360 pixels across all cell shapes. Determinism
 depends on the game's code and inputs.
 
