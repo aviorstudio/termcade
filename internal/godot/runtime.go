@@ -29,26 +29,31 @@ type KeyEvent struct {
 }
 
 type Frame struct {
-	Width  int    `json:"width"`
-	Height int    `json:"height"`
-	Pixels string `json:"pixels"`
-	Error  string `json:"error"`
+	Width        int              `json:"width"`
+	Height       int              `json:"height"`
+	Pixels       string           `json:"pixels"`
+	Error        string           `json:"error"`
+	RenderWidth  int              `json:"render_width"`
+	RenderHeight int              `json:"render_height"`
+	Timings      map[string]int64 `json:"timings"`
 }
 
 // Runtime owns one native engine child and its private loopback protocol. It
 // is a developer runtime, not a security sandbox for marketplace downloads.
 type Runtime struct {
-	cmd     *exec.Cmd
-	display *virtualDisplay
-	conn    net.Conn
-	reader  *bufio.Reader
-	log     *engineLog
-	done    chan struct{}
-	close   sync.Once
-	temp    string
-	Title   string
-	width   int
-	height  int
+	cmd            *exec.Cmd
+	display        *virtualDisplay
+	conn           net.Conn
+	reader         *bufio.Reader
+	log            *engineLog
+	done           chan struct{}
+	close          sync.Once
+	temp           string
+	LastRenderSize [2]int
+	LastFrameTimes map[string]int64
+	Title          string
+	width          int
+	height         int
 }
 
 func Start(ctx context.Context, bin, pack string) (_ *Runtime, err error) {
@@ -105,6 +110,9 @@ func Start(ctx context.Context, bin, pack string) (_ *Runtime, err error) {
 		return nil, err
 	}
 	r.cmd.Env = append(r.cmd.Env, "DISPLAY="+r.display.name, "LIBGL_ALWAYS_SOFTWARE=1")
+	if os.Getenv("TERMCADE_GODOT_FULL_RES") == "1" {
+		r.cmd.Env = append(r.cmd.Env, "TERMCADE_GODOT_FULL_RES=1")
+	}
 	r.cmd.Stdout, r.cmd.Stderr = r.log, r.log
 	if err = r.cmd.Start(); err != nil {
 		close(r.done)
@@ -193,6 +201,8 @@ func (r *Runtime) exchange(request any, budget time.Duration) ([]sdk.Color, erro
 			var frame Frame
 			err = json.Unmarshal(line, &frame)
 			if err == nil {
+				r.LastFrameTimes = frame.Timings
+				r.LastRenderSize = [2]int{frame.RenderWidth, frame.RenderHeight}
 				pixels, decodeErr := decodeFrame(frame, r.width, r.height)
 				_, failed := r.log.snapshot()
 				if decodeErr == nil && !failed {
