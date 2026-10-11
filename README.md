@@ -1,4 +1,4 @@
-<!-- Generated from private documentation source. Do not edit directly. Source SHA256: f8d65bed5a6cc825f968db47c0d98b582ba176feb364fcbad709fb67cb503c12 -->
+<!-- Generated from private documentation source. Do not edit directly. Source SHA256: 61f1006c1b191bba9c622ec85dbe5a69e8e2a3b6aaa8a8193226ff269ad97058 -->
 
 # termcade
 
@@ -299,21 +299,28 @@ go vet ./...
 ## Godot terminal target (experimental)
 
 Godot 4.7.2 projects can export to a custom **Termcade** target and play inside
-terminal character cells. The first target supports solid `Polygon2D`, `Line2D`,
-`ColorRect`, imported `Sprite2D` textures, transforms, visibility and z ordering.
-Godot runs the scene's GDScript and physics; a software renderer produces the
-framebuffer for Termcade's existing quadrant, sextant, half-block or ASCII renderer.
-There is no browser, graphical window or GPU readback in this target.
+terminal character cells. Godot renders the game's actual viewport, including
+cameras, animated sprites, UI, shaders, custom drawing, and 3D. Termcade resizes
+that image into its quadrant, sextant, half-block or ASCII cell renderer. A
+private virtual display keeps game windows off your desktop; play happens in
+the terminal.
+
+This experimental framebuffer runtime currently requires **Linux**, **Xvfb**
+and **Mesa OpenGL**. On Arch install `xorg-server-xvfb mesa`; on Ubuntu install
+`xvfb libgl1-mesa-dri libglx-mesa0`. Xvfb must be on PATH, or set
+`TERMCADE_XVFB_BIN` to its executable. The preview uses Godot's Compatibility
+renderer with software OpenGL. Games requiring Forward+, compute shaders, C#,
+native extensions, XR or additional windows are not supported by this runtime.
 
 Install Godot **4.7.2.stable.official.ed1daf0bf** and make `godot` available on
 PATH, or set `GODOT_BIN` to that executable. From a source checkout, `make install`
-installs the checksum-pinned Linux engine needed by the full gate. The release
-archives do not bundle Godot.
+installs the checksum-pinned Linux engine needed by the full gate. Release
+archives do not bundle Godot, Xvfb or Mesa.
 
 ```sh
 termcade godot export examples/godot/paddle build/paddle.tgd
 termcade godot play --trusted build/paddle.tgd
-termcade godot capture --trusted --json --frames 120 build/paddle.tgd frame.png
+termcade godot capture --trusted --json --columns 160 --rows 45 --frames 120 build/paddle.tgd frame.png
 ```
 
 For your own project, `termcade godot init /path/to/project` installs the addon
@@ -321,22 +328,30 @@ and adds a Termcade preset to Godot's Export dialog. The CLI exporter uses that
 same platform in a disposable project copy, leaving your source settings and
 import cache untouched. Output files must not already exist. Export and capture
 support `--json` for success and failure results. Flags precede positional paths.
+The new framebuffer protocol requires newly exported packages; re-export packages
+created by the earlier software-node prototype.
 
-In the player, **Ctrl+P** pauses and **Esc** or **Ctrl+C** exits. Arrow keys,
-letters, space, tab, backspace and enter are translated to Godot key events.
-Terminals with release reporting supply exact held keys; other terminals use
-an auto-repeat timeout. The preview needs at least 72 columns by 22 rows.
+The player uses the available terminal space, preserves the game's aspect ratio,
+and resizes captures without restarting gameplay. **Ctrl+P** pauses and **Ctrl+C**
+exits. Escape goes to the game so its menus work. Arrow keys, letters, space, tab,
+backspace and enter are translated to Godot key events. Terminals with release
+reporting supply exact held keys; other terminals use an auto-repeat timeout.
+The preview needs at least 72 columns by 22 rows. A larger terminal and smaller
+font give games with detailed UI more readable pixels. Game labels are rendered
+pixels rather than selectable terminal text.
 
 Capture accepts `--input replay.json`, an array of `{ "frame": 1, "code": 4194321,
 "down": true }` events using Godot key codes; `4194321` is the right arrow.
-Each capture starts a fresh scene. Output is a PNG of the framebuffer before
-terminal character conversion. Determinism depends on the game's code and inputs.
+Each capture starts a fresh engine. Output is a PNG of the framebuffer before
+terminal character conversion. Defaults are 72 columns and 20 rows. Capture
+resolution is bounded to 600 × 360 pixels across all cell shapes. Determinism
+depends on the game's code and inputs.
 
 This is a **local developer target**. `.tgd` packages execute native Godot code
 with host access, which is why play and capture require `--trusted`; they are
 not Wasm-sandboxed `.tcade` packages and cannot be published to the existing
-marketplace. User data is temporary for each preview. General Godot compatibility,
-native terminal text nodes, audio, mouse/controller input and terminal image
-protocols are not implemented. Unsupported visual nodes, cameras, materials,
-autoloads and native extensions are rejected. A hung frame terminates its engine
-process rather than blocking the terminal indefinitely.
+marketplace. User data is temporary for each preview. Audio, mouse/controller
+input, modifier combinations and terminal image protocols are not implemented.
+A hung frame terminates its engine and private display rather than blocking the
+terminal indefinitely. Ordinary rendering compatibility does not guarantee
+that every game is readable or controllable at terminal resolution.

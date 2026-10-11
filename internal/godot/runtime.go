@@ -38,16 +38,17 @@ type Frame struct {
 // Runtime owns one native engine child and its private loopback protocol. It
 // is a developer runtime, not a security sandbox for marketplace downloads.
 type Runtime struct {
-	cmd    *exec.Cmd
-	conn   net.Conn
-	reader *bufio.Reader
-	log    *engineLog
-	done   chan struct{}
-	close  sync.Once
-	temp   string
-	Title  string
-	width  int
-	height int
+	cmd     *exec.Cmd
+	display *virtualDisplay
+	conn    net.Conn
+	reader  *bufio.Reader
+	log     *engineLog
+	done    chan struct{}
+	close   sync.Once
+	temp    string
+	Title   string
+	width   int
+	height  int
 }
 
 func Start(ctx context.Context, bin, pack string) (_ *Runtime, err error) {
@@ -87,7 +88,8 @@ func Start(ctx context.Context, bin, pack string) (_ *Runtime, err error) {
 			r.Close()
 		}
 	}()
-	r.cmd = exec.CommandContext(ctx, bin, "--headless", "--quiet", "--fixed-fps", "60",
+	r.cmd = exec.CommandContext(ctx, bin, "--display-driver", "x11", "--rendering-method", "gl_compatibility",
+		"--audio-driver", "Dummy", "--disable-render-loop", "--quiet", "--fixed-fps", "60",
 		"--path", temp, "--main-pack", pack, "--script", "res://addons/termcade/runtime.gd", "--",
 		fmt.Sprint(listener.Addr().(*net.TCPAddr).Port), token)
 	r.cmd.WaitDelay = time.Second
@@ -98,6 +100,11 @@ func Start(ctx context.Context, bin, pack string) (_ *Runtime, err error) {
 	if systemRoot := os.Getenv("SystemRoot"); systemRoot != "" {
 		r.cmd.Env = append(r.cmd.Env, "SystemRoot="+systemRoot)
 	}
+	r.display, err = startDisplay(ctx, r.cmd.Env)
+	if err != nil {
+		return nil, err
+	}
+	r.cmd.Env = append(r.cmd.Env, "DISPLAY="+r.display.name, "LIBGL_ALWAYS_SOFTWARE=1")
 	r.cmd.Stdout, r.cmd.Stderr = r.log, r.log
 	if err = r.cmd.Start(); err != nil {
 		close(r.done)
@@ -123,7 +130,7 @@ func Start(ctx context.Context, bin, pack string) (_ *Runtime, err error) {
 			Title    string `json:"title"`
 		}
 		if readErr != nil || json.Unmarshal(line, &hello) != nil ||
-			hello.Protocol != 1 || subtle.ConstantTimeCompare([]byte(hello.Token), []byte(token)) != 1 {
+			hello.Protocol != 2 || subtle.ConstantTimeCompare([]byte(hello.Token), []byte(token)) != 1 {
 			conn.Close()
 			continue
 		}
@@ -151,17 +158,26 @@ func (r *Runtime) Reset(width, height int) ([]sdk.Color, error) {
 		return nil, fmt.Errorf("invalid Godot framebuffer %dx%d", width, height)
 	}
 	r.width, r.height = width, height
-	return r.exchange(map[string]any{"op": "reset", "width": width, "height": height}, 5*time.Second)
+	return r.exchange(map[string]any{"op": "reset", "width": width, "height": height}, 30*time.Second)
 }
 
 func (r *Runtime) Step(keys []KeyEvent) ([]sdk.Color, error) {
+	return r.StepCanvas(keys, r.width, r.height, 0.5)
+}
+
+// StepCanvas adjusts only capture dimensions; resizing never restarts gameplay.
+func (r *Runtime) StepCanvas(keys []KeyEvent, width, height int, pixelAspect float64) ([]sdk.Color, error) {
+	if width < 1 || width > 600 || height < 1 || height > 360 || pixelAspect <= 0 || pixelAspect > 2 {
+		return nil, fmt.Errorf("invalid Godot framebuffer dimensions")
+	}
 	if len(keys) > 256 {
 		return nil, fmt.Errorf("too many input events in one frame")
 	}
 	if keys == nil {
 		keys = []KeyEvent{}
 	}
-	return r.exchange(map[string]any{"op": "step", "keys": keys}, 500*time.Millisecond)
+	r.width, r.height = width, height
+	return r.exchange(map[string]any{"op": "step", "keys": keys, "width": width, "height": height, "pixel_aspect": pixelAspect}, 2*time.Second)
 }
 
 func (r *Runtime) exchange(request any, budget time.Duration) ([]sdk.Color, error) {
@@ -225,6 +241,9 @@ func (r *Runtime) Close() error {
 		if r.cmd != nil && r.cmd.Process != nil {
 			_ = r.cmd.Process.Kill()
 			<-r.done
+		}
+		if r.display != nil {
+			r.display.Close()
 		}
 		os.RemoveAll(r.temp)
 	})
