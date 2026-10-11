@@ -49,6 +49,10 @@ def main():
 
         command("export", "--json", project, pack)
         command("play", "--json", pack, success=False)
+        command("benchmark", "--json", pack, success=False)
+        benchmark = command("benchmark", "--trusted", "--json", "--frames", 8, "--warmup", 2, pack)
+        if benchmark["exchange_mean_ms"] <= 0 or benchmark["frames"] != 8 or benchmark["engine_mean_ms"]["render"] <= 0:
+            raise AssertionError("benchmark did not measure real warmed frames")
         initial = work / "initial.png"
         moved = work / "moved.png"
         repeated = work / "repeated.png"
