@@ -115,7 +115,7 @@ func runCommand(args []string) bool {
 	}
 	if err != nil {
 		if args[0] == "godot" && slices.Contains(args, "--json") {
-			_ = json.NewEncoder(os.Stdout).Encode(map[string]any{"ok": false, "error": err.Error(), "runtime": "godot-terminal-2d-v1"})
+			_ = json.NewEncoder(os.Stdout).Encode(map[string]any{"ok": false, "error": err.Error(), "runtime": "godot-terminal-framebuffer-v1"})
 			os.Exit(1)
 		}
 		fmt.Fprintln(os.Stderr, "termcade:", err)
