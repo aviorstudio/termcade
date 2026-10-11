@@ -1,3 +1,5 @@
+<!-- Generated from private documentation source. Do not edit directly. Source SHA256: f1c8b2d71c408ebd2ab269ada9f402cdd8891a15b990dcfa2e3453778338583d -->
+
 # termcade
 
 A terminal arcade. Classic games rendered at sub-cell resolution with block
@@ -293,3 +295,81 @@ go test ./...                # unit + shell tests
 go test ./internal/plugin/   # includes wasm end-to-end tests (builds guests)
 go vet ./...
 ```
+
+## Godot terminal target (experimental)
+
+Godot 4.7.2 projects can export to a custom **Termcade** target and play inside
+terminal character cells. Godot renders the game's actual viewport, including
+cameras, animated sprites, UI, shaders, custom drawing, and 3D. Termcade resizes
+that image into its quadrant, sextant, half-block or ASCII cell renderer. A
+private virtual display keeps game windows off your desktop; play happens in
+the terminal.
+
+This experimental framebuffer runtime currently requires **Linux**, **Xvfb**
+and **Mesa OpenGL**. On Arch install `xorg-server-xvfb mesa`; on Ubuntu install
+`xvfb libgl1-mesa-dri libglx-mesa0`. Xvfb must be on PATH, or set
+`TERMCADE_XVFB_BIN` to its executable. The preview uses Godot's Compatibility
+renderer with software OpenGL. Games requiring Forward+, compute shaders, C#,
+native extensions, XR or additional windows are not supported by this runtime.
+
+Install Godot **4.7.2.stable.official.ed1daf0bf** and make `godot` available on
+PATH, or set `GODOT_BIN` to that executable. From a source checkout, `make install`
+installs the checksum-pinned Linux engine needed by the full gate. Release
+archives do not bundle Godot, Xvfb or Mesa.
+
+```sh
+termcade godot export examples/godot/paddle build/paddle.tgd
+termcade godot play --trusted build/paddle.tgd
+termcade godot capture --trusted --json --columns 160 --rows 45 --frames 120 build/paddle.tgd frame.png
+termcade godot benchmark --trusted --json --columns 160 --rows 45 --frames 120 --warmup 60 build/paddle.tgd
+```
+
+For your own project, `termcade godot init /path/to/project` installs the addon
+and adds a Termcade preset to Godot's Export dialog. The CLI exporter uses that
+same platform in a disposable project copy, leaving your source settings and
+import cache untouched. Output files must not already exist. Export and capture
+support `--json` for success and failure results. Flags precede positional paths.
+The new framebuffer protocol requires newly exported packages; re-export packages
+created by the earlier software-node prototype.
+
+Godot renders near the terminal's pixel resolution while retaining the authored
+logical coordinates and UI layout. Final conversion uses bilinear filtering.
+For games with resolution-dependent shaders or viewport logic, set
+`TERMCADE_GODOT_FULL_RES=1` to keep the original render target. Re-export older
+packages to get this optimization. The player counts rendering and transfer time
+inside its 60 Hz frame budget, avoiding an extra full-frame wait.
+
+The player uses the available terminal space, preserves the game's aspect ratio,
+and resizes captures without restarting gameplay. **Ctrl+P** pauses and **Ctrl+C**
+exits. Escape goes to the game so its menus work. Arrow keys, letters, space, tab,
+backspace and enter are translated to Godot key events. Terminals with release
+reporting supply exact held keys; other terminals use an auto-repeat timeout.
+The preview needs at least 72 columns by 22 rows. A larger terminal and smaller
+font give detailed interfaces more room. Standard, axis-aligned Godot `Label`
+and `Button` text is drawn as real terminal characters over the game background,
+with alignment, wrapping and parent clipping. Re-export existing packages to
+include this feature. Rich text, rotated text, subviewport text, custom drawing
+and lettering baked into textures retain raster rendering. Terminal fonts replace
+the game's font, and crowded layouts can truncate text.
+
+Capture accepts `--input replay.json`, an array of `{ "frame": 1, "code": 4194321,
+"down": true }` events using Godot key codes; `4194321` is the right arrow.
+Each capture starts a fresh engine. Output is a PNG of the framebuffer before
+terminal character conversion; native text overlays are omitted from PNGs. Defaults are 72 columns and 20 rows. Capture
+resolution is bounded to 600 × 360 pixels across all cell shapes. Determinism
+depends on the game's code and inputs.
+
+`godot benchmark` runs an unpaced replay, excludes `--warmup` frames, and reports
+frame-exchange mean/p95, terminal-cell conversion time, ANSI bytes and available
+engine render/readback/resize timings. Input replay frame numbers include warmup.
+It measures the pipeline, not terminal-emulator paint time or startup latency.
+Benchmark and capture share the same bounded input format and resolution limits.
+
+This is a **local developer target**. `.tgd` packages execute native Godot code
+with host access, which is why play and capture require `--trusted`; they are
+not Wasm-sandboxed `.tcade` packages and cannot be published to the existing
+marketplace. User data is temporary for each preview. Audio, mouse/controller
+input, modifier combinations and terminal image protocols are not implemented.
+A hung frame terminates its engine and private display rather than blocking the
+terminal indefinitely. Ordinary rendering compatibility does not guarantee
+that every game is readable or controllable at terminal resolution.
