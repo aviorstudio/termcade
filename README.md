@@ -1,3 +1,5 @@
+<!-- Generated from private documentation source. Do not edit directly. Source SHA256: f8d65bed5a6cc825f968db47c0d98b582ba176feb364fcbad709fb67cb503c12 -->
+
 # termcade
 
 A terminal arcade. Classic games rendered at sub-cell resolution with block
@@ -293,3 +295,48 @@ go test ./...                # unit + shell tests
 go test ./internal/plugin/   # includes wasm end-to-end tests (builds guests)
 go vet ./...
 ```
+
+## Godot terminal target (experimental)
+
+Godot 4.7.2 projects can export to a custom **Termcade** target and play inside
+terminal character cells. The first target supports solid `Polygon2D`, `Line2D`,
+`ColorRect`, imported `Sprite2D` textures, transforms, visibility and z ordering.
+Godot runs the scene's GDScript and physics; a software renderer produces the
+framebuffer for Termcade's existing quadrant, sextant, half-block or ASCII renderer.
+There is no browser, graphical window or GPU readback in this target.
+
+Install Godot **4.7.2.stable.official.ed1daf0bf** and make `godot` available on
+PATH, or set `GODOT_BIN` to that executable. From a source checkout, `make install`
+installs the checksum-pinned Linux engine needed by the full gate. The release
+archives do not bundle Godot.
+
+```sh
+termcade godot export examples/godot/paddle build/paddle.tgd
+termcade godot play --trusted build/paddle.tgd
+termcade godot capture --trusted --json --frames 120 build/paddle.tgd frame.png
+```
+
+For your own project, `termcade godot init /path/to/project` installs the addon
+and adds a Termcade preset to Godot's Export dialog. The CLI exporter uses that
+same platform in a disposable project copy, leaving your source settings and
+import cache untouched. Output files must not already exist. Export and capture
+support `--json` for success and failure results. Flags precede positional paths.
+
+In the player, **Ctrl+P** pauses and **Esc** or **Ctrl+C** exits. Arrow keys,
+letters, space, tab, backspace and enter are translated to Godot key events.
+Terminals with release reporting supply exact held keys; other terminals use
+an auto-repeat timeout. The preview needs at least 72 columns by 22 rows.
+
+Capture accepts `--input replay.json`, an array of `{ "frame": 1, "code": 4194321,
+"down": true }` events using Godot key codes; `4194321` is the right arrow.
+Each capture starts a fresh scene. Output is a PNG of the framebuffer before
+terminal character conversion. Determinism depends on the game's code and inputs.
+
+This is a **local developer target**. `.tgd` packages execute native Godot code
+with host access, which is why play and capture require `--trusted`; they are
+not Wasm-sandboxed `.tcade` packages and cannot be published to the existing
+marketplace. User data is temporary for each preview. General Godot compatibility,
+native terminal text nodes, audio, mouse/controller input and terminal image
+protocols are not implemented. Unsupported visual nodes, cameras, materials,
+autoloads and native extensions are rejected. A hung frame terminates its engine
+process rather than blocking the terminal indefinitely.
