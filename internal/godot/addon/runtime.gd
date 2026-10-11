@@ -7,6 +7,8 @@ var started := false
 var width := 144
 var height := 40
 var pixel_aspect := 0.5
+var logical_size: Vector2i
+var native_resolution := false
 var input_bytes := PackedByteArray()
 var pressed_codes: Array[int] = []
 
@@ -23,7 +25,18 @@ func _initialize() -> void:
 	while peer.get_status() == StreamPeerTCP.STATUS_CONNECTING:
 		peer.poll()
 		OS.delay_usec(1000)
-	# Preserve the game's viewport and UI layout; only the captured image is resized.
+	peer.set_no_delay(true)
+	logical_size = Vector2i(ProjectSettings.get_setting("display/window/size/viewport_width", 0), ProjectSettings.get_setting("display/window/size/viewport_height", 0))
+	if logical_size.x <= 0 or logical_size.y <= 0:
+		logical_size = root.size
+	native_resolution = OS.get_environment("TERMCADE_GODOT_FULL_RES") == "1"
+	# Keep authored coordinates and layout while rendering only the pixels
+	# the terminal can show. Native resolution remains available for games
+	# whose scripts or shaders depend on the original render target size.
+	if not native_resolution:
+		root.content_scale_size = logical_size
+		root.content_scale_mode = Window.CONTENT_SCALE_MODE_CANVAS_ITEMS
+		root.content_scale_aspect = Window.CONTENT_SCALE_ASPECT_KEEP
 	root.disable_3d = false
 	RenderingServer.render_loop_enabled = false
 	_send({"protocol": PROTOCOL, "token": args[1], "title": ProjectSettings.get_setting("application/config/name", "Godot game")})
@@ -60,6 +73,11 @@ func _request(request: Dictionary) -> bool:
 	if width < 1 or width > 600 or height < 1 or height > 360 or pixel_aspect <= 0 or pixel_aspect > 2:
 		_send({"error": "invalid framebuffer dimensions"})
 		return true
+	if not native_resolution:
+		var scale := minf(1.0, minf(float(width) / logical_size.x, float(height) / pixel_aspect / logical_size.y))
+		var render_size := Vector2i(maxi(1, roundi(logical_size.x * scale)), maxi(1, roundi(logical_size.y * scale)))
+		if root.size != render_size:
+			root.size = render_size
 	if request.get("op") == "reset":
 		for code in pressed_codes:
 			var release := InputEventKey.new()
@@ -100,8 +118,12 @@ func _request(request: Dictionary) -> bool:
 func _send_frame() -> void:
 	# Godot renders every node, including cameras, UI, shaders and 3D. The
 	# private display never appears on the desktop; no node emulation is used.
+	var render_start := Time.get_ticks_usec()
 	RenderingServer.force_draw(false, 1.0 / 60.0)
+	var read_start := Time.get_ticks_usec()
 	var frame := root.get_texture().get_image()
+	var resize_start := Time.get_ticks_usec()
+	var render_size := frame.get_size()
 	if frame == null or frame.is_empty():
 		_send({"error": "Godot did not produce a rendered viewport"})
 		quit(2)
@@ -112,13 +134,13 @@ func _send_frame() -> void:
 	var fitted := Vector2i(maxi(1, roundi(frame.get_width() * scale / pixel_aspect)), maxi(1, roundi(frame.get_height() * scale)))
 	fitted.x = mini(fitted.x, width)
 	fitted.y = mini(fitted.y, height)
-	frame.resize(fitted.x, fitted.y, Image.INTERPOLATE_LANCZOS)
+	frame.resize(fitted.x, fitted.y, Image.INTERPOLATE_BILINEAR)
 	frame.convert(Image.FORMAT_RGB8)
 	var output := Image.create(width, height, false, Image.FORMAT_RGB8)
 	output.fill(Color.BLACK)
 	output.blit_rect(frame, Rect2i(Vector2i.ZERO, fitted), Vector2i((width - fitted.x) / 2, (height - fitted.y) / 2))
 	frame = output
-	_send({"width": width, "height": height, "pixels": Marshalls.raw_to_base64(frame.get_data())})
+	_send({"width": width, "height": height, "pixels": Marshalls.raw_to_base64(frame.get_data()), "render_width": render_size.x, "render_height": render_size.y, "timings": {"render_us": read_start - render_start, "readback_us": resize_start - read_start, "resize_us": Time.get_ticks_usec() - resize_start}})
 
 func _send(value: Dictionary) -> void:
 	peer.put_data((JSON.stringify(value) + "\n").to_utf8_buffer())
