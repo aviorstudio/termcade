@@ -71,6 +71,10 @@ type Runtime struct {
 }
 
 func Start(ctx context.Context, bin, pack string) (_ *Runtime, err error) {
+	sampling := os.Getenv("TERMCADE_GODOT_SAMPLING")
+	if sampling != "" && sampling != "smooth" && sampling != "fast" {
+		return nil, fmt.Errorf("TERMCADE_GODOT_SAMPLING must be smooth or fast")
+	}
 	if filepath.Ext(pack) != ".tgd" {
 		return nil, fmt.Errorf("Godot terminal packages use .tgd")
 	}
@@ -124,6 +128,7 @@ func Start(ctx context.Context, bin, pack string) (_ *Runtime, err error) {
 		return nil, err
 	}
 	r.cmd.Env = append(r.cmd.Env, "DISPLAY="+r.display.name, "LIBGL_ALWAYS_SOFTWARE=1")
+	r.cmd.Env = append(r.cmd.Env, "TERMCADE_GODOT_SAMPLING="+sampling)
 	if os.Getenv("TERMCADE_GODOT_FULL_RES") == "1" {
 		r.cmd.Env = append(r.cmd.Env, "TERMCADE_GODOT_FULL_RES=1")
 	}

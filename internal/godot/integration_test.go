@@ -260,8 +260,8 @@ func TestGodotNativeRenderingAndSceneTransitions(t *testing.T) {
 	if _, err = r.StepCanvas(nil, 80, 40, 1); err != nil {
 		t.Fatal(err)
 	}
-	if r.LastRenderSize[0] > 80 || r.LastRenderSize[1] > 40 || r.LastRenderSize[0] < 1 {
-		t.Fatalf("render target stayed oversized: %v", r.LastRenderSize)
+	if r.LastRenderSize[0] > 160 || r.LastRenderSize[1] > 80 || r.LastRenderSize[0] < 1 {
+		t.Fatalf("supersampled render target exceeded its bound: %v", r.LastRenderSize)
 	}
 	// Capture resize preserves the scene, focused button and autoload state.
 	if _, err = r.StepCanvas(nil, 320, 160, 1); err != nil {
@@ -304,4 +304,65 @@ func TestGodotNativeRenderingAndSceneTransitions(t *testing.T) {
 		t.Fatalf("native-resolution override ignored: %v", native.LastRenderSize)
 	}
 
+}
+
+// A diagonal camera pan over subpixel detail should average that detail instead
+// of blinking the entire sampled background between black and white.
+func TestGodotDiagonalBackgroundSampling(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
+	defer cancel()
+	bin, err := Binary(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	pack := filepath.Join(t.TempDir(), "sampling.tgd")
+	if err := Export(ctx, bin, "testdata/sampling", pack); err != nil {
+		t.Fatal(err)
+	}
+	measure := func(mode string) float64 {
+		t.Setenv("TERMCADE_GODOT_SAMPLING", mode)
+		r, err := Start(ctx, bin, pack)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer r.Close()
+		previous, err := r.Reset(64, 32)
+		if err != nil {
+			t.Fatal(err)
+		}
+		// Settle the square-pixel capture before measuring only camera motion.
+		for range 4 {
+			previous, err = r.StepCanvas(nil, 64, 32, 1)
+			if err != nil {
+				t.Fatal(err)
+			}
+		}
+		energy := 0.0
+		for range 24 {
+			frame, err := r.StepCanvas(nil, 64, 32, 1)
+			if err != nil {
+				t.Fatal(err)
+			}
+			for i, pixel := range frame {
+				pr, _, _ := pixel.RGB()
+				before, _, _ := previous[i].RGB()
+				energy += float64(abs(int(pr) - int(before)))
+			}
+			previous = frame
+		}
+		expected := [2]int{64, 32}
+		if mode == "smooth" {
+			expected = [2]int{128, 64}
+		}
+		if r.LastRenderSize != expected {
+			t.Fatalf("%s render size %v, expected %v", mode, r.LastRenderSize, expected)
+		}
+		return energy / float64(24*64*32)
+	}
+	fast := measure("fast")
+	smooth := measure("smooth")
+	t.Logf("diagonal background mean per-pixel flicker: fast %.2f, smooth %.2f", fast, smooth)
+	if fast < 20 || smooth >= fast*0.25 {
+		t.Fatalf("moving background aliasing was not reduced: fast %.2f, smooth %.2f", fast, smooth)
+	}
 }
