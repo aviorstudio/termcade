@@ -3,6 +3,7 @@ package main
 import (
 	"strings"
 	"testing"
+	"time"
 
 	tea "charm.land/bubbletea/v2"
 
@@ -36,5 +37,15 @@ func TestGodotPlayerPauseQueuesReleaseAndResizeRetainsFrame(t *testing.T) {
 	model, _ = resized.Update(tea.KeyReleaseMsg{Code: 'a'})
 	if !model.(godotPlayer).exact {
 		t.Fatal("terminal release events did not activate exact input mode")
+	}
+}
+
+func TestGodotFrameSchedulingIncludesRenderingTime(t *testing.T) {
+	start := time.Unix(100, 0)
+	if got := godotFrameDelay(start, start.Add(8*time.Millisecond)); got != time.Second/60-8*time.Millisecond {
+		t.Fatalf("render time was added to frame interval: %s", got)
+	}
+	if got := godotFrameDelay(start, start.Add(30*time.Millisecond)); got != 0 {
+		t.Fatalf("late frame incurred additional sleep: %s", got)
 	}
 }

@@ -1,4 +1,4 @@
-<!-- Generated from private documentation source. Do not edit directly. Source SHA256: 61f1006c1b191bba9c622ec85dbe5a69e8e2a3b6aaa8a8193226ff269ad97058 -->
+<!-- Generated from private documentation source. Do not edit directly. Source SHA256: f43ce6ca2cfa1100e4921d4b4dff9e3a809550b934541b2ebf2063f4f390c538 -->
 
 # termcade
 
@@ -321,6 +321,7 @@ archives do not bundle Godot, Xvfb or Mesa.
 termcade godot export examples/godot/paddle build/paddle.tgd
 termcade godot play --trusted build/paddle.tgd
 termcade godot capture --trusted --json --columns 160 --rows 45 --frames 120 build/paddle.tgd frame.png
+termcade godot benchmark --trusted --json --columns 160 --rows 45 --frames 120 --warmup 60 build/paddle.tgd
 ```
 
 For your own project, `termcade godot init /path/to/project` installs the addon
@@ -330,6 +331,13 @@ import cache untouched. Output files must not already exist. Export and capture
 support `--json` for success and failure results. Flags precede positional paths.
 The new framebuffer protocol requires newly exported packages; re-export packages
 created by the earlier software-node prototype.
+
+Godot renders near the terminal's pixel resolution while retaining the authored
+logical coordinates and UI layout. Final conversion uses bilinear filtering.
+For games with resolution-dependent shaders or viewport logic, set
+`TERMCADE_GODOT_FULL_RES=1` to keep the original render target. Re-export older
+packages to get this optimization. The player counts rendering and transfer time
+inside its 60 Hz frame budget, avoiding an extra full-frame wait.
 
 The player uses the available terminal space, preserves the game's aspect ratio,
 and resizes captures without restarting gameplay. **Ctrl+P** pauses and **Ctrl+C**
@@ -346,6 +354,12 @@ Each capture starts a fresh engine. Output is a PNG of the framebuffer before
 terminal character conversion. Defaults are 72 columns and 20 rows. Capture
 resolution is bounded to 600 × 360 pixels across all cell shapes. Determinism
 depends on the game's code and inputs.
+
+`godot benchmark` runs an unpaced replay, excludes `--warmup` frames, and reports
+frame-exchange mean/p95, terminal-cell conversion time, ANSI bytes and available
+engine render/readback/resize timings. Input replay frame numbers include warmup.
+It measures the pipeline, not terminal-emulator paint time or startup latency.
+Benchmark and capture share the same bounded input format and resolution limits.
 
 This is a **local developer target**. `.tgd` packages execute native Godot code
 with host access, which is why play and capture require `--trusted`; they are
