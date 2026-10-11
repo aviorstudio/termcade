@@ -73,7 +73,7 @@ func TestAddonDoesNotOverwriteAuthorChanges(t *testing.T) {
 	if err := writeAddon(project); err != nil {
 		t.Fatal(err)
 	}
-	file := filepath.Join(project, "addons", "termcade", "renderer.gd")
+	file := filepath.Join(project, "addons", "termcade", "runtime.gd")
 	if err := os.WriteFile(file, []byte("author edits"), 0o644); err != nil {
 		t.Fatal(err)
 	}
