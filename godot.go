@@ -10,6 +10,7 @@ import (
 	"image/png"
 	"io"
 	"os"
+	"sort"
 	"strings"
 	"time"
 	"unicode"
@@ -20,7 +21,7 @@ import (
 	"github.com/aviorstudio/termcade/sdk"
 )
 
-const godotUsage = "usage: termcade godot init <project> | export [--json] <project> <game.tgd> | play --trusted <game.tgd> | capture --trusted [--columns N] [--rows N] [--frames N] [--input replay.json] <game.tgd> <frame.png>"
+const godotUsage = "usage: termcade godot init <project> | export [--json] <project> <game.tgd> | play --trusted <game.tgd> | benchmark --trusted [--frames N] [--warmup N] <game.tgd> | capture --trusted [--columns N] [--rows N] [--frames N] [--input replay.json] <game.tgd> <frame.png>"
 
 func cmdGodot(args []string) error {
 	if len(args) == 0 {
@@ -32,16 +33,17 @@ func cmdGodot(args []string) error {
 	machine := options.Bool("json", false, "emit structured results")
 	columns := options.Int("columns", 72, "capture width in terminal columns")
 	rows := options.Int("rows", 20, "capture height in terminal rows")
+	warmup := options.Int("warmup", 60, "benchmark warmup frames")
 	frames := options.Int("frames", 1, "number of simulation frames to capture")
 	input := options.String("input", "", "JSON replay: array of {frame,code,down}")
 	if err := options.Parse(args[1:]); err != nil {
 		return err
 	}
 	positional := options.Args()
-	if args[0] != "init" && args[0] != "export" && args[0] != "play" && args[0] != "capture" {
+	if args[0] != "init" && args[0] != "export" && args[0] != "play" && args[0] != "capture" && args[0] != "benchmark" {
 		return fmt.Errorf("%s", godotUsage)
 	}
-	if (args[0] == "play" || args[0] == "capture") && !*trusted {
+	if (args[0] == "play" || args[0] == "capture" || args[0] == "benchmark") && !*trusted {
 		return fmt.Errorf("Godot .tgd projects execute native code; use --trusted for your local project (marketplace .tcade games retain their Wasm sandbox)")
 	}
 	ctx := context.Background()
@@ -66,12 +68,12 @@ func cmdGodot(args []string) error {
 			return err
 		}
 		return godotResult(*machine, "export", positional[1])
-	case "play", "capture":
+	case "play", "capture", "benchmark":
 		want := 1
 		if args[0] == "capture" {
 			want = 2
 		}
-		if len(positional) != want || *frames < 1 || *frames > 3600 {
+		if len(positional) != want || *frames < 1 || *frames > 3600 || (args[0] == "benchmark" && (*warmup < 0 || *warmup > 3600-*frames)) {
 			return fmt.Errorf("%s", godotUsage)
 		}
 		runtime, err := godot.Start(ctx, bin, positional[0])
@@ -96,6 +98,9 @@ func cmdGodot(args []string) error {
 			}
 			return godotResult(*machine, "capture", positional[1])
 		}
+		if args[0] == "benchmark" {
+			return benchmarkGodot(runtime, canvas, *frames, *warmup, *input, *machine)
+		}
 		model := godotPlayer{runtime: runtime, canvas: canvas, held: map[int]int{}}
 		_, err = tea.NewProgram(model).Run()
 		return err
@@ -117,12 +122,12 @@ type replayEvent struct {
 	godot.KeyEvent
 }
 
-func captureGodot(runtime *godot.Runtime, canvas *sdk.Canvas, frames int, input, destination string) error {
+func loadGodotReplay(input string, frames int) ([]replayEvent, error) {
 	var events []replayEvent
 	if input != "" {
 		file, err := os.Open(input)
 		if err != nil {
-			return err
+			return nil, err
 		}
 		decoder := json.NewDecoder(io.LimitReader(file, 65537))
 		decoder.DisallowUnknownFields()
@@ -135,13 +140,21 @@ func captureGodot(runtime *godot.Runtime, canvas *sdk.Canvas, frames int, input,
 		}
 		file.Close()
 		if err != nil || len(events) > 256 {
-			return fmt.Errorf("invalid bounded input replay: %v", err)
+			return nil, fmt.Errorf("invalid bounded input replay: %v", err)
 		}
 		for _, event := range events {
 			if event.Frame < 1 || event.Frame > frames || event.Code < 1 || event.Code > 1<<24 {
-				return fmt.Errorf("input replay event is out of range")
+				return nil, fmt.Errorf("input replay event is out of range")
 			}
 		}
+	}
+	return events, nil
+}
+
+func captureGodot(runtime *godot.Runtime, canvas *sdk.Canvas, frames int, input, destination string) error {
+	events, err := loadGodotReplay(input, frames)
+	if err != nil {
+		return err
 	}
 	for frame := 1; frame <= frames; frame++ {
 		var keys []godot.KeyEvent
@@ -180,9 +193,10 @@ func captureGodot(runtime *godot.Runtime, canvas *sdk.Canvas, frames int, input,
 
 type godotTick struct{}
 type godotFrame struct {
-	canvas *sdk.Canvas
-	pixels []sdk.Color
-	err    error
+	started time.Time
+	canvas  *sdk.Canvas
+	pixels  []sdk.Color
+	err     error
 }
 
 // The native engine exchange runs as a Tea command, keeping resize, pause and
@@ -201,10 +215,16 @@ type godotPlayer struct {
 	height  int
 }
 
-func (m godotPlayer) Init() tea.Cmd { return godotNextTick() }
+func (m godotPlayer) Init() tea.Cmd { return godotNextTick(time.Now()) }
 
-func godotNextTick() tea.Cmd {
-	return tea.Tick(time.Second/60, func(time.Time) tea.Msg { return godotTick{} })
+func godotNextTick(started time.Time) tea.Cmd {
+	return tea.Tick(godotFrameDelay(started, time.Now()), func(time.Time) tea.Msg { return godotTick{} })
+}
+
+// Rendering and transfer consume part of the frame budget. Waiting a full
+// interval after they finish slows the game's fixed-step simulation down.
+func godotFrameDelay(started, now time.Time) time.Duration {
+	return max(time.Duration(0), time.Second/60-now.Sub(started))
 }
 
 func (m godotPlayer) Update(message tea.Msg) (tea.Model, tea.Cmd) {
@@ -256,13 +276,14 @@ func (m godotPlayer) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 			keys := m.keys
 			m.keys = nil
 			m.busy = true
+			started := time.Now()
 			return m, func() tea.Msg {
 				width, height := canvas.PixelSize()
 				pixels, err := m.runtime.StepCanvas(keys, width, height, float64(shape.Rows)/float64(2*shape.Cols))
-				return godotFrame{canvas: canvas, pixels: pixels, err: err}
+				return godotFrame{started: started, canvas: canvas, pixels: pixels, err: err}
 			}
 		}
-		return m, godotNextTick()
+		return m, godotNextTick(time.Now())
 	case godotFrame:
 		m.busy = false
 		m.err = msg.err
@@ -270,7 +291,7 @@ func (m godotPlayer) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 			m.canvas = msg.canvas
 			copy(m.canvas.Pix(), msg.pixels)
 		}
-		return m, godotNextTick()
+		return m, godotNextTick(msg.started)
 	}
 	return m, nil
 }
@@ -330,4 +351,55 @@ func godotKey(key string) int {
 		return int(unicode.ToUpper(runes[0]))
 	}
 	return 0
+}
+
+// Benchmark reports warmed engine exchange and cell conversion; it does not
+// include the terminal emulator's painting or the player's 60 Hz pacing.
+func benchmarkGodot(runtime *godot.Runtime, canvas *sdk.Canvas, frames, warmup int, input string, machine bool) error {
+	events, err := loadGodotReplay(input, frames+warmup)
+	if err != nil {
+		return err
+	}
+	width, height := canvas.PixelSize()
+	shape := canvas.Shape()
+	samples := make([]float64, 0, frames)
+	engine := map[string]float64{}
+	cellMS := 0.0
+	ansiBytes := 0
+	for frame := 1; frame <= frames+warmup; frame++ {
+		var keys []godot.KeyEvent
+		for _, event := range events {
+			if event.Frame == frame {
+				keys = append(keys, event.KeyEvent)
+			}
+		}
+		started := time.Now()
+		pixels, err := runtime.StepCanvas(keys, width, height, float64(shape.Rows)/float64(2*shape.Cols))
+		if err != nil {
+			return err
+		}
+		elapsed := float64(time.Since(started).Microseconds()) / 1000
+		if frame <= warmup {
+			continue
+		}
+		samples = append(samples, elapsed)
+		for key, value := range runtime.LastFrameTimes {
+			engine[strings.TrimSuffix(key, "_us")] += float64(value) / 1000 / float64(frames)
+		}
+		copy(canvas.Pix(), pixels)
+		started = time.Now()
+		rendered := canvas.Render()
+		cellMS += float64(time.Since(started).Microseconds()) / 1000 / float64(frames)
+		ansiBytes += len(rendered)
+	}
+	sort.Float64s(samples)
+	mean := 0.0
+	for _, sample := range samples {
+		mean += sample / float64(frames)
+	}
+	if machine {
+		return json.NewEncoder(os.Stdout).Encode(map[string]any{"ok": true, "operation": "benchmark", "runtime": "godot-terminal-framebuffer-v1", "godot": godot.EngineVersion, "frames": frames, "warmup": warmup, "width": width, "height": height, "exchange_mean_ms": mean, "exchange_p95_ms": samples[(len(samples)-1)*95/100], "cell_render_mean_ms": cellMS, "ansi_bytes_per_frame": ansiBytes / frames, "engine_mean_ms": engine})
+	}
+	fmt.Printf("Godot frame exchange %.2f ms mean, %.2f ms p95; terminal cells %.2f ms; %d ANSI bytes/frame\n", mean, samples[(len(samples)-1)*95/100], cellMS, ansiBytes/frames)
+	return nil
 }

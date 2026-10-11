@@ -1,6 +1,8 @@
 extends Node2D
 
 func _ready() -> void:
+	if get_viewport().get_visible_rect().size != Vector2(160, 80):
+		push_error("Terminal rendering changed authored viewport coordinates")
 	var camera := Camera2D.new()
 	camera.position = Vector2(80, 40)
 	add_child(camera)
@@ -61,3 +63,7 @@ func _ready() -> void:
 
 func _draw() -> void:
 	draw_rect(Rect2(0, 0, 40, 40), Color.RED)
+
+func _process(_delta: float) -> void:
+	if get_viewport().get_visible_rect().size != Vector2(160, 80):
+		push_error("Capture resizing changed authored viewport coordinates")

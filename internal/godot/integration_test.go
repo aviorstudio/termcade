@@ -242,6 +242,13 @@ func TestGodotNativeRenderingAndSceneTransitions(t *testing.T) {
 			t.Errorf("%s did not render: %d matching pixels", name, count)
 		}
 	}
+	// Low-resolution rendering preserves authored coordinates and gameplay.
+	if _, err = r.StepCanvas(nil, 80, 40, 1); err != nil {
+		t.Fatal(err)
+	}
+	if r.LastRenderSize[0] > 80 || r.LastRenderSize[1] > 40 || r.LastRenderSize[0] < 1 {
+		t.Fatalf("render target stayed oversized: %v", r.LastRenderSize)
+	}
 	// Capture resize preserves the scene, focused button and autoload state.
 	if _, err = r.StepCanvas(nil, 320, 160, 1); err != nil {
 		t.Fatal(err)
@@ -267,4 +274,20 @@ func TestGodotNativeRenderingAndSceneTransitions(t *testing.T) {
 	if magenta < len(pixels)/3 {
 		t.Fatal("focused UI, autoload state or scene transition failed")
 	}
+	// Games that depend on the original render target can opt out without
+	// changing their source or the terminal capture dimensions.
+	r.Close()
+	t.Setenv("TERMCADE_GODOT_FULL_RES", "1")
+	native, err := Start(ctx, bin, pack)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer native.Close()
+	if _, err = native.Reset(80, 40); err != nil {
+		t.Fatal(err)
+	}
+	if native.LastRenderSize != [2]int{160, 80} {
+		t.Fatalf("native-resolution override ignored: %v", native.LastRenderSize)
+	}
+
 }
