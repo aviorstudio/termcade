@@ -3,14 +3,16 @@ SHELL := /bin/bash
 .DEFAULT_GOAL := help
 .NOTPARALLEL:
 VERSION ?= dev
-.PHONY: help install lint test build check dev stop clean
+export PATH := $(CURDIR)/.artifacts/godot/bin:$(PATH)
+.PHONY: help install lint test build artifact-check check dev stop clean
 help:
-	@echo 'make check: complete five-platform archive build, lint and race/consumer checks'
+	@echo 'make check: five-platform archives, lint, race/consumer and real Godot terminal checks'
 install:
 	mise trust .mise.toml
 	mise install go python actionlint shellcheck
 	mise exec -- go mod download
 	cd sdk && mise exec -- go mod download
+	mise exec -- python3 scripts/install-godot.py
 lint:
 	mise exec -- bash scripts/lint.sh
 	mise exec -- actionlint
@@ -19,7 +21,9 @@ test:
 	mise exec -- bash scripts/test.sh
 build:
 	mise exec -- env VERSION="$(VERSION)" bash scripts/build.sh
-check: build lint test
+artifact-check:
+	mise exec -- python3 scripts/test-godot-cli.py
+check: build lint test artifact-check
 dev stop:
 	@echo '$@: unsupported: interactive arcade sessions require caller-owned terminal and account configuration'
 clean:

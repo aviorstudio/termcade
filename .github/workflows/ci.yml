@@ -40,3 +40,6 @@ jobs:
 
       - name: Test
         uses: ./.github/actions/test
+
+      - name: Artifact Check
+        uses: ./.github/actions/artifact-check
