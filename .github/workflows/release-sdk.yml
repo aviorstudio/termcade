@@ -1,4 +1,4 @@
-name: Release SDK
+name: "SDK Release"
 
 # Cut an SDK release: bump the sdk/v* tag and publish a tag-only GitHub
 # release. No artifacts — the SDK is a Go module, and the tag IS the release;
@@ -27,6 +27,7 @@ concurrency: release-sdk-${{ github.repository }}
 
 jobs:
   release:
+    name: "Release SDK"
     runs-on: blacksmith-4vcpu-ubuntu-2404
     # Bounded, so a step that hangs fails here rather than sitting until the
     # runner's own timeout hours later.
@@ -34,7 +35,8 @@ jobs:
     permissions:
       contents: write # create the tag and the release
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: "Check out source"
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
 
@@ -70,7 +72,8 @@ jobs:
           fi
           echo "tag=$tag" >> "$GITHUB_OUTPUT"
 
-      - uses: jdx/mise-action@2d8d4cafcbd33be2ea37d2b6f5ad595363d1f1ca # v5.1.1
+      - name: "Set up tools"
+        uses: jdx/mise-action@2d8d4cafcbd33be2ea37d2b6f5ad595363d1f1ca # v5.1.1
       - name: Install pinned build and validation tools
         run: make install
 
