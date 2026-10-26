@@ -81,7 +81,7 @@ func PairingURLWithCode(base, code string) string {
 func (c *Client) StartDevice(ctx context.Context, deviceName string) (DeviceRound, error) {
 	deviceName = safeText(deviceName, 200)
 	if deviceName == "" {
-		deviceName = "Termcade CLI"
+		deviceName = "termcade CLI"
 	}
 	var out deviceStartResponse
 	err := c.doContext(ctx, http.MethodPost, "/v1/device/start", map[string]string{

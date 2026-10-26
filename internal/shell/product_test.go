@@ -191,7 +191,7 @@ func TestProductCtrlNTogglesNavigationWithoutFooterStop(t *testing.T) {
 					if cmd != nil || m.app.loc != location || m.app.selection != 1 || m.app.gen != generation || len(fixture.calls) != calls {
 						t.Fatal("navigation toggle changed page, selection, or service state")
 					}
-					if width < sidebarBreakpoint && strings.Contains(ansi.Strip(view(m)), "TERMCADE") != (want == 0) {
+					if width < sidebarBreakpoint && strings.Contains(ansi.Strip(view(m)), "termcade") != (want == 0) {
 						t.Fatal("compact navigation did not open/close with the toggle")
 					}
 				}
@@ -1094,7 +1094,7 @@ func TestProductSidebarBreakpointAndContentCap(t *testing.T) {
 	m, _ = step(t, m, tea.WindowSizeMsg{Width: 80, Height: 24})
 	m.app.focus = 0
 	first = strings.Split(ansi.Strip(view(m)), "\n")[0]
-	if !strings.HasPrefix(first, "TERMCADE") || []rune(first)[21] != '│' {
+	if !strings.HasPrefix(first, "termcade") || []rune(first)[21] != '│' {
 		t.Fatal("compact navigation is not an overlay")
 	}
 }
@@ -1117,7 +1117,7 @@ func TestProductNavigationLeavesMainFooterUncovered(t *testing.T) {
 				t.Fatal("open navigation missing the shared footer")
 			}
 			for i := openCut; i < len(opened); i++ {
-				if strings.Contains(opened[i], "TERMCADE") || (len([]rune(opened[i])) > sidebarWidth-1 && []rune(opened[i])[sidebarWidth-1] == '│' && strings.Count(opened[i], "─") >= 8) {
+				if strings.Contains(opened[i], "termcade") || (len([]rune(opened[i])) > sidebarWidth-1 && []rune(opened[i])[sidebarWidth-1] == '│' && strings.Count(opened[i], "─") >= 8) {
 					t.Fatalf("navigation covered main footer row %d: %q", i, opened[i])
 				}
 			}
@@ -1150,7 +1150,7 @@ func TestProductNavigationOverlaysSmallAndPushesLargeOnlyWhenOpen(t *testing.T) 
 						t.Fatalf("overlay reflowed content on row %d", i)
 					}
 				}
-				if !strings.HasPrefix(opened[0], "TERMCADE") {
+				if !strings.HasPrefix(opened[0], "termcade") {
 					t.Fatal("small navigation is not an overlay")
 				}
 			} else {

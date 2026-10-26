@@ -132,7 +132,7 @@ func (p *productBackend) request(ctx context.Context, req shell.ProductRequest) 
 		}
 		c := registry.New(p.store.Registry, "").WithContext(ctx)
 		if req.Kind == "pair-start" {
-			round, err := c.StartDevice(ctx, "Termcade TUI")
+			round, err := c.StartDevice(ctx, "termcade TUI")
 			return shell.ProductReply{Round: round, PairingURL: p.store.PairingURL}, err
 		}
 		s, err := c.CompleteDevice(ctx, req.Round)

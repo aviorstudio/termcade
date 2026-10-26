@@ -52,7 +52,7 @@ func TestDeviceRoundPendingThenApproved(t *testing.T) {
 		case "/v1/device/start":
 			var body map[string]string
 			json.NewDecoder(r.Body).Decode(&body)
-			if body["client_id"] != clientID || body["device_name"] != "Termcade CLI" {
+			if body["client_id"] != clientID || body["device_name"] != "termcade CLI" {
 				t.Errorf("start body = %#v", body)
 			}
 			json.NewEncoder(w).Encode(startResponse(nil))
@@ -74,7 +74,7 @@ func TestDeviceRoundPendingThenApproved(t *testing.T) {
 	defer srv.Close()
 
 	client := New(srv.URL, "")
-	round, err := client.StartDevice(context.Background(), "Termcade CLI")
+	round, err := client.StartDevice(context.Background(), "termcade CLI")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -115,7 +115,7 @@ func TestExpiredRoundRestartsWithBackoff(t *testing.T) {
 	defer srv.Close()
 
 	displays := 0
-	session, err := New(srv.URL, "").deviceLogin(context.Background(), "Termcade CLI", func(uri, code string) {
+	session, err := New(srv.URL, "").deviceLogin(context.Background(), "termcade CLI", func(uri, code string) {
 		displays++
 		if uri != PairingURI || !userCodeRE.MatchString(code) {
 			t.Errorf("unsafe display %q %q", uri, code)
@@ -154,7 +154,7 @@ func TestServerErrorTextIsTerminalSafe(t *testing.T) {
 		json.NewEncoder(w).Encode(map[string]string{"message": "bad\x1b[2J\nrequest"})
 	}))
 	defer srv.Close()
-	_, err := New(srv.URL, "").StartDevice(context.Background(), "Termcade CLI")
+	_, err := New(srv.URL, "").StartDevice(context.Background(), "termcade CLI")
 	if err == nil || strings.ContainsAny(err.Error(), "\x1b\n\r") || err.Error() != "bad[2Jrequest" {
 		t.Fatalf("unsafe server error = %q", err)
 	}
@@ -165,7 +165,7 @@ func TestOversizedDeviceResponseIsRejected(t *testing.T) {
 		w.Write([]byte(`{"device_code":"` + strings.Repeat("A", maxJSONResponse) + `"}`))
 	}))
 	defer srv.Close()
-	_, err := New(srv.URL, "").StartDevice(context.Background(), "Termcade CLI")
+	_, err := New(srv.URL, "").StartDevice(context.Background(), "termcade CLI")
 	if err == nil || err.Error() != "the marketplace returned malformed data" {
 		t.Fatalf("oversized response error = %v", err)
 	}
@@ -191,7 +191,7 @@ func TestHostileDeviceStartFieldsAreRejected(t *testing.T) {
 				json.NewEncoder(w).Encode(startResponse(map[string]any{test.field: test.value}))
 			}))
 			defer srv.Close()
-			_, err := New(srv.URL, "").StartDevice(context.Background(), "Termcade CLI")
+			_, err := New(srv.URL, "").StartDevice(context.Background(), "termcade CLI")
 			if err == nil || !strings.Contains(err.Error(), test.want) {
 				t.Fatalf("error=%v, want %q", err, test.want)
 			}
@@ -253,7 +253,7 @@ func TestRevokedCredentialIsNotReturnedAsSession(t *testing.T) {
 		}
 	}))
 	defer srv.Close()
-	_, err := New(srv.URL, "").deviceLogin(context.Background(), "Termcade CLI", func(string, string) {}, fakePolicy())
+	_, err := New(srv.URL, "").deviceLogin(context.Background(), "termcade CLI", func(string, string) {}, fakePolicy())
 	if !errors.Is(err, ErrLoginRequired) {
 		t.Fatalf("revocation error = %v, want ErrLoginRequired", err)
 	}

@@ -22,7 +22,7 @@ func cmdLoginContext(ctx context.Context, args []string, out io.Writer) error {
 		return fmt.Errorf("usage: termcade login")
 	}
 	client := registry.New(registry.URL(nil), "")
-	session, err := client.DeviceLogin(ctx, "Termcade CLI", func(uri, code string) {
+	session, err := client.DeviceLogin(ctx, "termcade CLI", func(uri, code string) {
 		fmt.Fprintf(out, "\nUsing a browser, visit:\n  %s\n\nAnd enter this code:\n  %s\n\nWaiting for approval (Ctrl+C to cancel)…\n", uri, code)
 	})
 	if err != nil {
