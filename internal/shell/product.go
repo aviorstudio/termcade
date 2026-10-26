@@ -860,7 +860,7 @@ func (m Model) productItems() []productItem {
 	case "pairing":
 		items = append(items, productItem{Label: "Secure browser approval", Detail: "Never enter an account password or email verification code here."}, productItem{Label: m.app.pairingURL, Kind: "open-url", ID: m.app.pairingURL}, productItem{Label: "Pairing code: " + m.app.round.UserCode, Detail: "Waiting for approval. No browser is opened automatically."})
 	case "docs":
-		items = append(items, productItem{Label: "TERMCADE", Detail: "One arcade in your terminal and browser."}, productItem{Label: "Library", Detail: "Games you add appear in the navigation. Play installs a missing package. Local installations remain playable offline."}, productItem{Label: "Two removal actions", Detail: "Remove from Library changes your account. Uninstall here removes only this machine's copy."}, productItem{Label: "Build a game", Detail: "termcade dev new author/slug\ntermcade dev build\ntermcade dev install game.tcade"}, productItem{Label: "Publish", Detail: "termcade publish <github-repo> <tag> [asset]"}, productItem{Label: "Keyboard", Detail: "Ctrl+N toggles navigation. Tab is next and Shift+Tab is previous in lists, actions, forms, and dialogs. Enter activates; Esc goes back/pauses; Ctrl+C quits. PgUp/PgDown scrolls long text."}, productItem{Label: "Gameplay", Detail: "Arrows/WASD to move · Space/Z action A · X action B · Enter start. Pause retains keyboard navigation and pixel selection."})
+		items = append(items, productItem{Label: "termcade", Detail: "One arcade in your terminal and browser."}, productItem{Label: "Library", Detail: "Games you add appear in the navigation. Play installs a missing package. Local installations remain playable offline."}, productItem{Label: "Two removal actions", Detail: "Remove from Library changes your account. Uninstall here removes only this machine's copy."}, productItem{Label: "Build a game", Detail: "termcade dev new author/slug\ntermcade dev build\ntermcade dev install game.tcade"}, productItem{Label: "Publish", Detail: "termcade publish <github-repo> <tag> [asset]"}, productItem{Label: "Keyboard", Detail: "Ctrl+N toggles navigation. Tab is next and Shift+Tab is previous in lists, actions, forms, and dialogs. Enter activates; Esc goes back/pauses; Ctrl+C quits. PgUp/PgDown scrolls long text."}, productItem{Label: "Gameplay", Detail: "Arrows/WASD to move · Space/Z action A · X action B · Enter start. Pause retains keyboard navigation and pixel selection."})
 	}
 	return items
 }
@@ -1661,7 +1661,7 @@ func (m Model) productNavView(width, height int) string {
 	accountIndex := len(items) - 1
 	identity := renderItem(accountIndex)
 	bodyHeight := max(0, height-lipgloss.Height(identity))
-	lines := []string{lipgloss.NewStyle().Foreground(lipgloss.Color("#e6c945")).Bold(true).Render("TERMCADE"), ""}
+	lines := []string{lipgloss.NewStyle().Foreground(lipgloss.Color("#e6c945")).Bold(true).Render("termcade"), ""}
 	visibleRows := max(0, bodyHeight-len(lines))
 	start := 0
 	if m.app.nav < accountIndex {
