@@ -1,58 +1,88 @@
-name: "Build & Test"
-
-# Every push and pull request: test, then build, on one runner.
-#
-# Nothing is published, so a green CI means one thing — this commit is good.
-# The steps are .github/actions/*, the same ones Release runs; one definition
-# of each, and it is the one guarding a release.
-
-on:
-  push:
-    branches: [main]
+name: Build & Test
+'on':
   pull_request:
-  workflow_dispatch:
-
+    types:
+    - opened
+    - synchronize
+    - reopened
+    - ready_for_review
+  push:
+    branches:
+    - main
+  workflow_dispatch: null
 permissions:
   contents: read
-
+  attestations: read
 concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
-
 jobs:
-  ci:
-    name: "Test"
+  build:
+    name: Build
     runs-on: ubuntu-24.04
-    # Bounded, so a step that hangs fails here rather than sitting until the
-    # runner's own timeout hours later.
-    timeout-minutes: 20
+    timeout-minutes: 15
     steps:
-      - name: "Check out source"
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-
-      - name: Record tested integration identity
-        if: github.event_name == 'pull_request'
-        uses: nicodes/tools/integration-identity@247267492cd455647facafcfcc6eed4c63c49c0e # v0.27.2
-        env:
-          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
-      - name: Upload artifacts
-        if: github.event_name == 'pull_request'
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: fleet-integration-${{ github.run_id }}-${{ github.run_attempt }}
-          path: .artifacts/fleet-integration.json
-          if-no-files-found: error
-          retention-days: 7
-      - name: "Set up tools"
-        uses: jdx/mise-action@9b200bcecbfd6303e69a4a261b2e09e3757440a7 # v5.2.0
-      - name: Install pinned build and validation tools
-        run: make install
-
-      # Built first: a compile error should fail before a test suite spends
-      # minutes reaching the same conclusion more slowly. This is the order
-      # every other workflow in the organisation uses.
-      - name: Build
-        uses: ./.github/actions/build
-
-      - name: Test
-        uses: ./.github/actions/test
+    - name: Check out source
+      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      with:
+        persist-credentials: false
+    - name: Set up locked Komizo
+      uses: nicodes/komizo/setup@6458b3e1328805b485c91ba1f09211f5bd45431b
+      env:
+        GH_TOKEN: ${{ github.token }}
+      timeout-minutes: 5
+    - name: Build
+      uses: nicodes/komizo/run@6458b3e1328805b485c91ba1f09211f5bd45431b
+      with:
+        target: install build
+    - name: Upload artifacts
+      uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+      with:
+        name: built-cli-${{ github.sha }}
+        path: |
+          dist/
+          .artifacts/contract/build.json
+        include-hidden-files: true
+        retention-days: 1
+        if-no-files-found: error
+  ci:
+    name: Test
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+    - name: Check out source
+      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      with:
+        persist-credentials: false
+    - name: Set up locked Komizo
+      uses: nicodes/komizo/setup@6458b3e1328805b485c91ba1f09211f5bd45431b
+      env:
+        GH_TOKEN: ${{ github.token }}
+      timeout-minutes: 5
+    - name: Download artifacts
+      uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
+      with:
+        name: built-cli-${{ github.sha }}
+        path: .
+    - name: Record tested integration identity
+      if: github.event_name == 'pull_request'
+      env:
+        EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
+      run: |
+        komizo exec --tools python -- bash -euo pipefail <<'KOMIZO_COMMAND'
+        python3 "$CICD_ENGINEERING/helpers/integration-identity.py"
+        KOMIZO_COMMAND
+    - name: Upload artifacts
+      if: github.event_name == 'pull_request'
+      uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+      with:
+        name: fleet-integration-${{ github.run_id }}-${{ github.run_attempt }}
+        path: .artifacts/fleet-integration.json
+        if-no-files-found: error
+        retention-days: 7
+        include-hidden-files: true
+    - name: Check project
+      uses: nicodes/komizo/run@6458b3e1328805b485c91ba1f09211f5bd45431b
+      with:
+        target: check
+    needs: build
