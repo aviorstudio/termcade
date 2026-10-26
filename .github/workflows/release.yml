@@ -80,17 +80,17 @@ jobs:
           echo "tag=$tag" >> "$GITHUB_OUTPUT"
 
       - name: "Set up tools"
-        uses: nicodes/komizo/setup@6458b3e1328805b485c91ba1f09211f5bd45431b
+        uses: nicodes/komizo/setup@40086036977a5fc0119d6c4c1d5eb6ae3ab3b4b9
         env:
           GH_TOKEN: ${{ github.token }}
       - name: Install pinned build and validation tools
-        uses: nicodes/komizo/run@6458b3e1328805b485c91ba1f09211f5bd45431b
+        uses: nicodes/komizo/run@40086036977a5fc0119d6c4c1d5eb6ae3ab3b4b9
         with:
           target: install
 
       # Verify the exact versioned artifacts before attestation and publication.
       - name: Check project
-        uses: nicodes/komizo/run@6458b3e1328805b485c91ba1f09211f5bd45431b
+        uses: nicodes/komizo/run@40086036977a5fc0119d6c4c1d5eb6ae3ab3b4b9
         with:
           target: check
         env:
