@@ -1,6 +1,6 @@
-<!-- Generated from private documentation source. Do not edit directly. Source SHA256: 409b6c0b9be470e71a679e85eb2b2d51d2a0d4da678f797aca34b589f6aabc79 -->
+<!-- Generated from private documentation source. Do not edit directly. Source SHA256: 2230568effdc3fa062e56fd1f29bdff2a901e2086acd330f287ff9f31dac1c83 -->
 
-# Termcade
+# termcade
 
 A terminal arcade with sandboxed WebAssembly games. It includes Asteroid, Tetris and Brickough. Use a truecolor terminal at least 80×24 cells.
 
@@ -16,7 +16,7 @@ To create a game, run `termcade dev new you/mygame`, then use `termcade dev buil
 
 ## Development
 
-Install the [Komizo release](https://github.com/nicodes/komizo#install) matching `komizo.lock`.
+Install the [komizo release](https://github.com/nicodes/komizo#install) matching `komizo.lock`.
 
 ```sh
 komizo check        # Complete project checks
