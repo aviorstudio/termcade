@@ -1,0 +1,101 @@
+{
+  "version": 1,
+  "recipe": "go-cli",
+  "repository": "aviorstudio/termcade",
+  "tools": {
+    "actionlint": "1.7.12",
+    "shellcheck": "0.11.0"
+  },
+  "artifacts": [
+    "dist"
+  ],
+  "stages": {
+    "install": [
+      [
+        "go",
+        "mod",
+        "download"
+      ],
+      [
+        "go",
+        "-C",
+        "sdk",
+        "mod",
+        "download"
+      ]
+    ],
+    "lint": [
+      [
+        "bash",
+        "scripts/lint.sh"
+      ],
+      [
+        "actionlint"
+      ],
+      [
+        "bash",
+        "-euo",
+        "pipefail",
+        "-c",
+        "shellcheck scripts/*.sh .github/scripts/*.sh"
+      ]
+    ],
+    "unit": [
+      [
+        "bash",
+        "scripts/test.sh"
+      ]
+    ],
+    "build": [
+      [
+        "bash",
+        "scripts/build.sh"
+      ]
+    ],
+    "artifact-check": [
+      [
+        "bash",
+        "-euo",
+        "pipefail",
+        "-c",
+        "(cd dist && sha256sum --check --strict checksums.txt)"
+      ]
+    ],
+    "dev": {
+      "inapplicable": "Interactive CLI usage requires a caller-owned terminal and configuration"
+    },
+    "stop": {
+      "inapplicable": "The CLI owns no background development service"
+    },
+    "clean": [
+      [
+        "python3",
+        "-c",
+        "import shutil; [shutil.rmtree(p,ignore_errors=True) for p in ['dist', '.artifacts']]"
+      ]
+    ]
+  },
+  "build_environment": [
+    "VERSION",
+    "COMMIT"
+  ],
+  "build_environment_defaults": {
+    "VERSION": "dev"
+  },
+  "revision_environment": [
+    "COMMIT"
+  ],
+  "validation": {
+    "workflow": {
+      "required": [
+        "ci.yml",
+        "dependency-policy.yml",
+        "release.yml"
+      ],
+      "ci_gates": [
+        "Build",
+        "Test"
+      ]
+    }
+  }
+}
