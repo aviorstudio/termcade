@@ -47,7 +47,7 @@ usage:
   termcade dev install <file>  install a local .tcade while developing
 
 This arcade is also the whole dev kit: dev new, hack, dev build, dev install,
-play. See docs/sdk.md to get started.
+play. See README.md to get started.
 `
 
 // runCommand dispatches non-play subcommands; it reports whether it handled

@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
+VERSION="${VERSION:-dev}"
 if [[ "$VERSION" != dev && ! "$VERSION" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
   echo "Unsupported version string: $VERSION" >&2
   exit 1

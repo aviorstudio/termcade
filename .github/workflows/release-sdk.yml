@@ -29,11 +29,14 @@ jobs:
   release:
     name: "Release SDK"
     runs-on: ubuntu-24.04
+    env:
+      MISE_GITHUB_TOKEN: ${{ github.token }}
     # Bounded, so a step that hangs fails here rather than sitting until the
     # runner's own timeout hours later.
     timeout-minutes: 20
     permissions:
       contents: write # create the tag and the release
+      attestations: read
     steps:
       - name: "Check out source"
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -73,14 +76,20 @@ jobs:
           echo "tag=$tag" >> "$GITHUB_OUTPUT"
 
       - name: "Set up tools"
-        uses: jdx/mise-action@9b200bcecbfd6303e69a4a261b2e09e3757440a7 # v5.2.0
+        uses: nicodes/komizo/setup@6458b3e1328805b485c91ba1f09211f5bd45431b
+        env:
+          GH_TOKEN: ${{ github.token }}
       - name: Install pinned build and validation tools
-        run: make install
+        uses: nicodes/komizo/run@6458b3e1328805b485c91ba1f09211f5bd45431b
+        with:
+          target: install
 
       # The release gate is the same suite CI runs; the SDK never releases
       # from a commit the arcade's tests wouldn't pass.
       - name: Test
-        uses: ./.github/actions/test
+        uses: nicodes/komizo/run@6458b3e1328805b485c91ba1f09211f5bd45431b
+        with:
+          target: check
 
       - name: Create the release
         env:
@@ -96,7 +105,7 @@ jobs:
           go get github.com/aviorstudio/termcade/sdk@$version
           \`\`\`
 
-          See docs/sdk.md for the author quickstart and docs/abi.md for the
+          See README.md for the author quickstart and the
           wasm ABI this SDK targets.
           NOTES
           gh release create "$TAG" --target "$GITHUB_SHA" \
