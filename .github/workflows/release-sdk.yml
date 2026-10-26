@@ -29,6 +29,8 @@ jobs:
   release:
     name: "Release SDK"
     runs-on: ubuntu-24.04
+    env:
+      MISE_GITHUB_TOKEN: ${{ github.token }}
     # Bounded, so a step that hangs fails here rather than sitting until the
     # runner's own timeout hours later.
     timeout-minutes: 20
