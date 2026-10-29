@@ -1,17 +1,36 @@
-<!-- Generated from private documentation source. Do not edit directly. Source SHA256: 1a70da1c9844d181be16ad0f5639f235c5fcfa4b620c662ae8c6f9f6d410829e -->
+<!-- Generated from private documentation source. Do not edit directly. Source SHA256: bc851fd95fb69c8299f32c8719f5bcfcb91ffb3a638a9543d330d9ba35ec4d0f -->
 
 # termcade
 
 A terminal arcade with sandboxed WebAssembly games. It includes Asteroid, Tetris and Brickough. Use a truecolor terminal at least 80×24 cells.
 
+## Install
+
+Linux and macOS (x86_64 or arm64), using prebuilt binaries:
+
+With curl:
+
 ```sh
-curl -fsSL https://www.termca.de/install | sh
+curl -fsSL https://termca.de/install | sh
+```
+
+Or with mise:
+
+```sh
+mise use --global github:aviorstudio/termcade@latest
+```
+
+The shell installer verifies the release checksum and installs to `~/.local/bin`; add that directory to your PATH if necessary. Mise manages its own installation directory and PATH through its shell activation.
+
+## Play
+
+```sh
 termcade
 termcade add aviorstudio/tetris
 termcade --help
 ```
 
-The installer supports Linux and macOS, verifies the release checksum and installs to `~/.local/bin`. Add that directory to your PATH if necessary. `--install-dir` and `--version` can be passed through `sh -s --`. Prebuilt binaries are also available from [Releases](https://github.com/aviorstudio/termcade/releases). `TERMCADE_PIXELS` selects `quad`, `sextant`, `half` or `ascii` rendering. The in-app Settings screen saves a preferred pixel style.
+`TERMCADE_PIXELS` selects `quad`, `sextant`, `half` or `ascii` rendering. The in-app Settings screen saves a preferred pixel style.
 
 To create a game, run `termcade dev new you/mygame`, then use `termcade dev build <directory>` to build its package. The Go SDK is a separate module at `github.com/aviorstudio/termcade/sdk`; choose an exact `sdk/v*` tag from Releases.
 
