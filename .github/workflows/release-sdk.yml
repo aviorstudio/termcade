@@ -1,15 +1,5 @@
-name: "SDK Release"
-
-# Cut an SDK release: bump the sdk/v* tag and publish a tag-only GitHub
-# release. No artifacts — the SDK is a Go module, and the tag IS the release;
-# `go get github.com/aviorstudio/termcade/sdk@sdk/v0.0.2` resolves the moment
-# the tag exists. The sdk/ prefix is not a house style choice: Go requires it
-# for a module in a subdirectory.
-#
-# Bump discipline: the wasm ABI is part of the SDK contract. An ABI change is
-# never a patch.
-
-on:
+name: SDK Release
+'on':
   workflow_dispatch:
     inputs:
       bump:
@@ -17,96 +7,87 @@ on:
         required: true
         type: choice
         options:
-          - patch
-          - minor
-          - major
-
+        - patch
+        - minor
+        - major
 permissions: {}
-
 concurrency: release-sdk-${{ github.repository }}
-
 jobs:
   release:
-    name: "Release SDK"
+    name: Release SDK
     runs-on: ubuntu-24.04
     env:
       MISE_GITHUB_TOKEN: ${{ github.token }}
-    # Bounded, so a step that hangs fails here rather than sitting until the
-    # runner's own timeout hours later.
     timeout-minutes: 20
     permissions:
-      contents: write # create the tag and the release
+      contents: write
       attestations: read
     steps:
-      - name: "Check out source"
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          fetch-depth: 0
+    - name: Check out source
+      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      with:
+        fetch-depth: 0
+    - name: Determine release version
+      id: release
+      env:
+        BUMP: ${{ inputs.bump }}
+      run: |-
+        set -euo pipefail
+        if [ "$GITHUB_REF" != "refs/heads/main" ]; then
+          echo 'Run releases from the main branch.' >&2
+          exit 1
+        fi
+        prefix="sdk/v"
+        git fetch --tags --force
+        latest="$(git tag --list "${prefix}[0-9]*" | sed -E "s|^${prefix}||" | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -n 1 || true)"
+        if [ -z "$latest" ]; then
+          version="0.0.1"
+        else
+          IFS=. read -r major minor patch <<< "$latest"
+          case "$BUMP" in
+            major) major=$((major + 1)); minor=0; patch=0 ;;
+            minor) minor=$((minor + 1)); patch=0 ;;
+            patch) patch=$((patch + 1)) ;;
+            *) echo "Unsupported bump: $BUMP" >&2; exit 1 ;;
+          esac
+          version="${major}.${minor}.${patch}"
+        fi
+        tag="${prefix}${version}"
+        if git rev-parse -q --verify "refs/tags/$tag" >/dev/null; then
+          echo "Tag already exists: $tag" >&2
+          exit 1
+        fi
+        echo "tag=$tag" >> "$GITHUB_OUTPUT"
+    - name: Set up development tools
+      uses: nicodes/tools/setup@091101094fedf5ce2e67c339c1c9c842d6a662dc
+      env:
+        GH_TOKEN: ${{ github.token }}
+    - name: Install pinned build and validation tools
+      shell: bash
+      run: |-
+        set -euo pipefail
+        mise run install
+    - name: Test
+      shell: bash
+      run: |-
+        set -euo pipefail
+        mise run check
+    - name: Create the release
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        TAG: ${{ steps.release.outputs.tag }}
+      run: |-
+        set -euo pipefail
+        version="${TAG#sdk/}"
+        cat > notes.md <<NOTES
+        termcade sdk $version
 
-      - name: Determine release version
-        id: release
-        env:
-          BUMP: ${{ inputs.bump }}
-        run: |
-          set -euo pipefail
-          if [ "$GITHUB_REF" != "refs/heads/main" ]; then
-            echo 'Run releases from the main branch.' >&2
-            exit 1
-          fi
-          prefix="sdk/v"
-          git fetch --tags --force
-          latest="$(git tag --list "${prefix}[0-9]*" | sed -E "s|^${prefix}||" | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -n 1 || true)"
-          if [ -z "$latest" ]; then
-            version="0.0.1"
-          else
-            IFS=. read -r major minor patch <<< "$latest"
-            case "$BUMP" in
-              major) major=$((major + 1)); minor=0; patch=0 ;;
-              minor) minor=$((minor + 1)); patch=0 ;;
-              patch) patch=$((patch + 1)) ;;
-              *) echo "Unsupported bump: $BUMP" >&2; exit 1 ;;
-            esac
-            version="${major}.${minor}.${patch}"
-          fi
-          tag="${prefix}${version}"
-          if git rev-parse -q --verify "refs/tags/$tag" >/dev/null; then
-            echo "Tag already exists: $tag" >&2
-            exit 1
-          fi
-          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+        \`\`\`sh
+        go get github.com/aviorstudio/termcade/sdk@$version
+        \`\`\`
 
-      - name: "Set up tools"
-        uses: nicodes/komizo/setup@2ca94e2fd4bb05f41bb228e9c366e5cc733c75e6
-        env:
-          GH_TOKEN: ${{ github.token }}
-      - name: Install pinned build and validation tools
-        uses: nicodes/komizo/run@2ca94e2fd4bb05f41bb228e9c366e5cc733c75e6
-        with:
-          target: install
-
-      # The release gate is the same suite CI runs; the SDK never releases
-      # from a commit the arcade's tests wouldn't pass.
-      - name: Test
-        uses: nicodes/komizo/run@2ca94e2fd4bb05f41bb228e9c366e5cc733c75e6
-        with:
-          target: check
-
-      - name: Create the release
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          TAG: ${{ steps.release.outputs.tag }}
-        run: |
-          set -euo pipefail
-          version="${TAG#sdk/}"
-          cat > notes.md <<NOTES
-          termcade sdk $version
-
-          \`\`\`sh
-          go get github.com/aviorstudio/termcade/sdk@$version
-          \`\`\`
-
-          See README.md for the author quickstart and the
-          wasm ABI this SDK targets.
-          NOTES
-          gh release create "$TAG" --target "$GITHUB_SHA" \
-            --title "$TAG" --notes-file notes.md
+        See README.md for the author quickstart and the
+        wasm ABI this SDK targets.
+        NOTES
+        gh release create "$TAG" --target "$GITHUB_SHA" \
+          --title "$TAG" --notes-file notes.md
