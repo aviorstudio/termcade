@@ -13,3 +13,5 @@ termcade-sdk = { path = "../../../../sdk" }
 
 [profile.release]
 panic = "abort"
+
+[workspace]

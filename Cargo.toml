@@ -1,4 +1,4 @@
 [workspace]
-members = ["sdk", "manifest", "internal/plugin"]
+members = ["sdk", "manifest", "internal/plugin", "internal/registry"]
 exclude = ["internal/plugin/testdata/probe-rust", "internal/plugin/testdata/hang-rust"]
 resolver = "3"
