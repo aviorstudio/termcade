@@ -219,6 +219,8 @@ struct App {
     nav_selection: usize,
     action_selection: usize,
     nav_visible: bool,
+    game_nav: bool,
+    mutating: bool,
     scroll: u16,
     query: String,
     search_focus: bool,
@@ -262,7 +264,6 @@ impl Drop for App {
         if let Some(job) = &self.sync_job {
             job.abort();
         }
-        let _ = self.scores.save();
     }
 }
 impl App {
@@ -280,6 +281,8 @@ impl App {
             nav_selection: 0,
             action_selection: 0,
             nav_visible: true,
+            game_nav: false,
+            mutating: false,
             scroll: 0,
             query: String::new(),
             search_focus: false,
@@ -319,10 +322,12 @@ impl App {
             job.abort();
         }
         self.loading = false;
+        self.mutating = false;
     }
     fn request(&mut self, request: Request) {
         self.cancel();
         self.loading = true;
+        self.mutating = matches!(&request, Request::Mutate(_));
         let generation = self.generation;
         let backend = self.backend.clone();
         let tx = self.tx.clone();
@@ -443,6 +448,7 @@ impl App {
             Item::new("Marketplace", "", Command::Go(Page::Market)),
             Item::new("Library", "", Command::Go(Page::Library)),
             Item::new("Docs", "", Command::Go(Page::Docs)),
+            Item::new("Settings", "", Command::Go(Page::Settings)),
         ];
         let mut games = self.snapshot.library.clone();
         for local in &self.snapshot.installed {
@@ -472,7 +478,11 @@ impl App {
                 })
                 .unwrap_or_else(|| "Sign in / Settings".into()),
             "",
-            Command::Go(Page::Settings),
+            if self.snapshot.account.is_some() {
+                Command::Go(Page::Settings)
+            } else {
+                Command::Login
+            },
         ));
         items
     }
@@ -990,11 +1000,15 @@ impl App {
             Command::None => (),
             Command::Go(page) => self.navigate(page, true),
             Command::Back => {
+                let reconcile = self.mutating;
                 self.cancel();
                 self.form = None;
                 self.pairing = None;
                 let page = self.history.pop().unwrap_or(Page::Market);
                 self.navigate(page, false);
+                if reconcile {
+                    self.request(Request::Load);
+                }
             }
             Command::Refresh => {
                 let page = self.page.clone();
@@ -1055,6 +1069,10 @@ impl App {
                 self.notice = format!("pixels: {name}");
             }
             Command::Open(url) => {
+                if self.width < 40 || self.height < 20 {
+                    self.notice = "Resize to at least 40 × 20 to open a browser".into();
+                    return Ok(());
+                }
                 let generation = self.generation;
                 let tx = self.tx.clone();
                 tokio::spawn(async move {
@@ -1189,6 +1207,12 @@ impl App {
                     if !matches!(action, Action::CheckUsername(_)) {
                         self.form = None;
                     }
+                    if matches!(action, Action::OrgDelete(_)) {
+                        self.page = Page::Settings;
+                        self.selection = 0;
+                        self.focus = 1;
+                        self.members.clear();
+                    }
                     match &self.page {
                         Page::Members(id) => self.request(Request::Members(id.clone())),
                         Page::Sessions => self.request(Request::Sessions),
@@ -1220,6 +1244,7 @@ impl App {
         self.scores.save()?;
         self.sync_activity();
         self.mode = Mode::Browse;
+        self.game_nav = false;
         self.page = Page::Market;
         self.focus = 1;
         self.selection = 0;
@@ -1277,8 +1302,18 @@ impl App {
         {
             return Ok(true);
         }
+        if key.kind == KeyEventKind::Repeat
+            && self.mode != Mode::Playing
+            && (matches!(
+                key.code,
+                KeyCode::Enter | KeyCode::Tab | KeyCode::BackTab | KeyCode::Esc
+            ) || key.modifiers.contains(KeyModifiers::CONTROL)
+                && key.code == KeyCode::Char('n'))
+        {
+            return Ok(false);
+        }
         if key.kind == KeyEventKind::Release {
-            if self.mode == Mode::Playing {
+            if matches!(self.mode, Mode::Playing | Mode::Paused) {
                 let k = translate(key.code);
                 if k != Key::None
                     && let Some(game) = &mut self.game
@@ -1319,6 +1354,35 @@ impl App {
                 _ => (),
             }
             return Ok(false);
+        }
+        if matches!(self.mode, Mode::Paused | Mode::GameOver | Mode::Crashed) {
+            if key.code == KeyCode::Char('n') && key.modifiers.contains(KeyModifiers::CONTROL) {
+                self.game_nav = !self.game_nav;
+                return Ok(false);
+            }
+            if self.game_nav {
+                let items = self.navigation();
+                match key.code {
+                    KeyCode::Esc => self.game_nav = false,
+                    KeyCode::Up | KeyCode::BackTab => {
+                        self.nav_selection = (self.nav_selection + items.len() - 1) % items.len()
+                    }
+                    KeyCode::Down | KeyCode::Tab => {
+                        self.nav_selection = (self.nav_selection + 1) % items.len()
+                    }
+                    KeyCode::Enter => {
+                        if let Some(item) = items.get(self.nav_selection) {
+                            let command = item.command.clone();
+                            if !matches!(command, Command::Login) {
+                                self.close_game().await?;
+                            }
+                            self.execute(command).await?;
+                        }
+                    }
+                    _ => (),
+                }
+                return Ok(false);
+            }
         }
         match self.mode {
             Mode::Playing => {

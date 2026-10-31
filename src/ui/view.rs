@@ -99,10 +99,11 @@ pub(super) fn draw(app: &mut App, frame: &mut Frame) {
         );
         return;
     }
+    let playing = app.mode != Mode::Browse;
     let [header, body, footer] = Layout::vertical([
-        Constraint::Length(2),
+        Constraint::Length(if playing { 1 } else { 2 }),
         Constraint::Min(1),
-        Constraint::Length(5),
+        Constraint::Length(if playing { 2 } else { 5 }),
     ])
     .areas(area);
     let status = if app.loading || app.search_loading {
@@ -193,42 +194,87 @@ pub(super) fn draw(app: &mut App, frame: &mut Frame) {
         };
     }
     let actions = app.actions();
-    let controls = if app.mode == Mode::Browse {
-        Line::from(
-            actions
-                .iter()
-                .enumerate()
-                .map(|(i, item)| {
-                    Span::styled(
-                        format!(" {} ", clean(&item.label)),
-                        if app.focus == 2 && i == app.action_selection {
-                            selected()
-                        } else {
-                            Style::default().fg(if i == 0 { MUTED } else { ACCENT })
-                        },
-                    )
-                })
-                .collect::<Vec<_>>(),
-        )
+    if playing {
+        let hint = match app.mode {
+            Mode::Playing => format!(
+                "Esc / P pause · Ctrl+C quit · {}",
+                app.game
+                    .as_ref()
+                    .map(|g| clean(&g.hud.hint))
+                    .unwrap_or_default()
+            ),
+            Mode::Paused => "Enter select · Esc resume · Ctrl+N navigation · Ctrl+C quit".into(),
+            Mode::GameOver => {
+                "Enter / R play again · Esc / M Marketplace · Ctrl+N navigation · Ctrl+C quit"
+                    .into()
+            }
+            _ => "Any key Marketplace · Ctrl+N navigation · Ctrl+C quit".into(),
+        };
+        frame.render_widget(
+            Paragraph::new(hint)
+                .style(Style::default().fg(MUTED))
+                .block(
+                    Block::default()
+                        .borders(Borders::TOP)
+                        .border_style(Style::default().fg(Color::DarkGray)),
+                ),
+            footer,
+        );
     } else {
-        Line::from("Esc / P pause · Arrows/WASD move · Space/Z A · X B · Enter start")
-    };
-    let foot = Text::from(vec![
-        Line::styled(clean(&notice), Style::default().fg(Color::Yellow)),
-        controls,
-        Line::styled(
-            "Tab / Shift+Tab focus · ↑/↓ select · Enter activate · Ctrl+N navigation · Ctrl+C quit",
-            Style::default().fg(MUTED),
-        ),
-    ]);
-    frame.render_widget(
-        Paragraph::new(foot).wrap(Wrap { trim: false }).block(
-            Block::default()
-                .borders(Borders::TOP)
-                .border_style(Style::default().fg(Color::DarkGray)),
-        ),
-        footer,
-    );
+        let controls = if app.focus == 2 && !actions.is_empty() {
+            let at = app.action_selection.min(actions.len() - 1);
+            Line::styled(
+                format!(
+                    "‹ {} ›   {}/{}",
+                    clean(&actions[at].label),
+                    at + 1,
+                    actions.len()
+                ),
+                selected(),
+            )
+        } else {
+            Line::from(
+                actions
+                    .iter()
+                    .map(|item| {
+                        Span::styled(
+                            format!(" {} ", clean(&item.label)),
+                            Style::default().fg(ACCENT),
+                        )
+                    })
+                    .collect::<Vec<_>>(),
+            )
+        };
+        let foot = Text::from(vec![
+            Line::styled(clean(&notice), Style::default().fg(Color::Yellow)),
+            controls,
+            Line::styled(
+                "Tab / Shift+Tab focus · ↑/↓ select · Enter activate · Ctrl+N navigation · Ctrl+C quit",
+                Style::default().fg(MUTED),
+            ),
+        ]);
+        frame.render_widget(
+            Paragraph::new(foot).wrap(Wrap { trim: false }).block(
+                Block::default()
+                    .borders(Borders::TOP)
+                    .border_style(Style::default().fg(Color::DarkGray)),
+            ),
+            footer,
+        );
+    }
+    if app.game_nav && playing {
+        let nav = Rect::new(body.x, body.y, 26.min(body.width), body.height);
+        frame.render_widget(Clear, nav);
+        list(
+            frame,
+            &app.navigation(),
+            app.nav_selection,
+            nav,
+            "Arcade".into(),
+            true,
+            false,
+        );
+    }
     if app.search_focus && app.page == Page::Market {
         frame.render_widget(
             Paragraph::new(format!("Search: {}█", clean(&app.query)))
@@ -247,7 +293,10 @@ pub(super) fn draw(app: &mut App, frame: &mut Frame) {
     if let Some(pair) = &app.pairing {
         pairing_view(app, pair, frame, area);
     }
-    if matches!(app.mode, Mode::Paused | Mode::GameOver | Mode::Crashed) {
+    if !app.game_nav
+        && app.pairing.is_none()
+        && matches!(app.mode, Mode::Paused | Mode::GameOver | Mode::Crashed)
+    {
         overlay(app, frame, area);
     }
 }
@@ -357,13 +406,13 @@ fn game_view(app: &App, frame: &mut Frame, area: Rect) {
         return;
     };
     let width = game.canvas.w as u16 + 2;
-    let height = (game.canvas.h / 2) as u16 + 4;
+    let height = (game.canvas.h / 2) as u16 + 1;
     if area.width < width || area.height < height {
         frame.render_widget(
             Paragraph::new(format!(
                 "Resize to at least {} × {} to play\nEsc pauses",
                 width,
-                height + 7
+                height + 3
             ))
             .alignment(Alignment::Center),
             area,
@@ -371,7 +420,9 @@ fn game_view(app: &App, frame: &mut Frame, area: Rect) {
         return;
     }
     let panel = centered(area, width, height);
-    let block = border(clean(&game.manifest.game.name), true);
+    let block = Block::default()
+        .borders(Borders::LEFT | Borders::RIGHT)
+        .border_style(Style::default().fg(ACCENT));
     let inner = block.inner(panel);
     frame.render_widget(block, panel);
     let hud = game
@@ -395,10 +446,6 @@ fn game_view(app: &App, frame: &mut Frame, area: Rect) {
             inner.width,
             (game.canvas.h / 2) as u16,
         ),
-    );
-    frame.render_widget(
-        Paragraph::new(clean(&game.hud.hint)).alignment(Alignment::Center),
-        Rect::new(inner.x, inner.y + inner.height - 1, inner.width, 1),
     );
 }
 fn modal(frame: &mut Frame, area: Rect, title: &str, width: u16, height: u16) -> Rect {

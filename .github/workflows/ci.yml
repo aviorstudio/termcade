@@ -130,6 +130,8 @@ jobs:
       run: cargo audit --deny warnings
     - name: Build native Rust CLI for independent acceptance
       run: cargo build --bin termcade --locked
+    - name: Exercise offline CLI and Rust authoring journeys
+      run: python3 scripts/test_rust_cli.py --binary .artifacts/rust-target/debug/termcade --wasm .artifacts/rust-target/wasm32-wasip1/release/termcade_probe_fixture.wasm
     - name: Upload tested native Rust CLI
       uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
       with:

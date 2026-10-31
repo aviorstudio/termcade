@@ -293,3 +293,86 @@ async fn rust_guest_plays_pauses_finishes_and_queues_a_run_once() {
         serde_json::from_slice(&std::fs::read(score_path).unwrap()).unwrap();
     assert_eq!(data["pending"].as_array().unwrap().len(), 1);
 }
+
+#[tokio::test]
+async fn standard_playfield_fits_80_by_24_in_every_pixel_style_and_pause_can_sign_in() {
+    let (mut app, _dir, _rx) = app();
+    let package = termcade_manifest::Package::read(include_bytes!(
+        "../../internal/starter/packs/tetris.tcade"
+    ))
+    .unwrap();
+    for shape in [
+        CellShape::half(),
+        CellShape::quadrant(),
+        CellShape::sextant(),
+        CellShape::ascii(),
+    ] {
+        let manifest = package.manifest.clone();
+        let mut guest = app
+            .backend
+            .runtime
+            .load(
+                &manifest.game.id,
+                &package.wasm,
+                manifest.info(),
+                shape.clone(),
+            )
+            .await
+            .unwrap();
+        guest.reset().await.unwrap();
+        let mut canvas = Canvas::new(
+            manifest.requirements.width as usize,
+            manifest.requirements.height as usize,
+            termcade_sdk::BLACK,
+            shape,
+        );
+        guest.draw(&mut canvas).await.unwrap();
+        let hud = guest.hud().await.unwrap();
+        let width = canvas.w;
+        let height = canvas.h / 2;
+        app.game = Some(ActiveGame {
+            guest,
+            manifest,
+            canvas,
+            hud,
+            score: 0,
+            recorded: false,
+        });
+        app.mode = Mode::Playing;
+        app.width = 80;
+        app.height = 24;
+        let mut terminal = Terminal::new(TestBackend::new(80, 24)).unwrap();
+        terminal.draw(|frame| view::draw(&mut app, frame)).unwrap();
+        let buffer = terminal.backend().buffer();
+        let game = app.game.as_ref().unwrap();
+        let left = (80 - width as u16 - 2) / 2 + 1;
+        for y in 0..height {
+            for x in 0..width {
+                assert_eq!(
+                    buffer[(left + x as u16, 2 + y as u16)].symbol(),
+                    game.canvas.cell(x, y).glyph.to_string(),
+                    "clipped pixel at {x},{y}"
+                );
+            }
+        }
+        let last = (0..80)
+            .map(|x| buffer[(x, 23)].symbol())
+            .collect::<String>();
+        assert!(last.contains("Esc / P pause"));
+    }
+    app.mode = Mode::Paused;
+    app.key(KeyEvent::new(KeyCode::Char('n'), KeyModifiers::CONTROL))
+        .await
+        .unwrap();
+    assert!(app.game_nav);
+    assert!(app.mode == Mode::Paused);
+    app.nav_selection = app.navigation().len() - 1;
+    app.key(key(KeyCode::Enter)).await.unwrap();
+    assert!(app.pairing.is_some());
+    assert!(app.game.is_some());
+    assert!(app.mode == Mode::Paused);
+    app.key(key(KeyCode::Esc)).await.unwrap();
+    assert!(app.pairing.is_none());
+    assert!(app.game.is_some());
+    assert!(app.mode == Mode::Paused);
+}
