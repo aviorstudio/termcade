@@ -41,7 +41,9 @@ def main():
     if not os.environ.get('NATIVE_CLI_ARCHIVES'):expected={host_archive().name}
     actual={p.name for p in Path('dist').iterdir()if p.name.endswith(('.tar.gz','.zip'))}
     assert actual==expected,'incomplete or unexpected native archives'
-    sums=''.join(hashlib.sha256((Path('dist')/name).read_bytes()).hexdigest()+'  '+name+'\n'for name in sorted(expected))
+    notice=Path('dist/THIRD_PARTY_NOTICES.txt')
+    assert notice.read_bytes()==Path('THIRD_PARTY_NOTICES.txt').read_bytes(),'starter notices changed'
+    sums=''.join(hashlib.sha256((Path('dist')/name).read_bytes()).hexdigest()+'  '+name+'\n'for name in sorted(expected|{'THIRD_PARTY_NOTICES.txt'}))
     receipt=Path('dist/checksums.txt')
     if args.record:receipt.write_text(sums);return
     assert receipt.read_text()==sums,'release archive bytes changed'

@@ -55,9 +55,30 @@ async fn rust_sdk_guest_roundtrip_keeps_ticks_keys_pixels_hud_gameover_and_reset
 }
 
 #[tokio::test]
-async fn original_published_go_starters_run_in_the_rust_host_at_every_density() {
+async fn legacy_go_starter_fixtures_run_in_the_rust_host_at_every_density() {
+    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("testdata/legacy-starters");
+    let source: serde_json::Value =
+        serde_json::from_slice(&fs::read(root.join("SOURCE.json")).unwrap()).unwrap();
+    for row in source["packages"].as_array().unwrap() {
+        assert_eq!(
+            format!(
+                "{:x}",
+                Sha256::digest(fs::read(root.join(row["file"].as_str().unwrap())).unwrap())
+            ),
+            row["sha256"].as_str().unwrap()
+        );
+    }
+    check_game_packages("testdata/legacy-starters").await;
+}
+
+#[tokio::test]
+async fn current_starters_run_in_the_rust_host_at_every_density() {
+    check_game_packages("../starter/packs").await;
+}
+
+async fn check_game_packages(relative: &str) {
     let runtime = Runtime::new().unwrap();
-    let packs = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../starter/packs");
+    let packs = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(relative);
     let mut count = 0;
     for entry in fs::read_dir(packs).unwrap() {
         let path = entry.unwrap().path();

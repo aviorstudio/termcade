@@ -1,0 +1,46 @@
+{
+  "repository": "https://github.com/aviorstudio/termcade-games",
+  "source_commit": "863a053cab6672c77b4863d4876a69ffbad687e7",
+  "implementation": "Rust WASIp1, ABI 1",
+  "packages": [
+    {
+      "file": "asteroid.tcade",
+      "id": "aviorstudio/asteroid",
+      "version": "0.1.0",
+      "tag": "asteroid-v0.1.0",
+      "sha256": "7fbafb0f2b2b3100c41dfb225d26ee512ada85a57c3518ea957864d7aaad69bb",
+      "bytes": 42780,
+      "width": 72,
+      "height": 40,
+      "release_ci": 41228408956,
+      "attestation_verified": true,
+      "marketplace_verified": true
+    },
+    {
+      "file": "brickough.tcade",
+      "id": "aviorstudio/brickough",
+      "version": "0.1.0",
+      "tag": "brickough-v0.1.0",
+      "sha256": "7289719ea5a66e607188b5623ac61bae492f8a2f90a559abcfa83083b6cf148c",
+      "bytes": 31472,
+      "width": 64,
+      "height": 40,
+      "release_ci": 41228411148,
+      "attestation_verified": true,
+      "marketplace_verified": true
+    },
+    {
+      "file": "tetris.tcade",
+      "id": "aviorstudio/tetris",
+      "version": "0.1.0",
+      "tag": "tetris-v0.1.0",
+      "sha256": "33eb430858972d7336013a8848ad42fc9748d67089d234fcf579f7dcf72c1384",
+      "bytes": 36061,
+      "width": 32,
+      "height": 40,
+      "release_ci": 41228413496,
+      "attestation_verified": true,
+      "marketplace_verified": true
+    }
+  ]
+}

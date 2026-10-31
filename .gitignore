@@ -7,6 +7,7 @@ games/*/build/
 # …except the starter pack, embedded in the Rust binary. These committed
 # content assets come from termcade-games; ABI-v1 packages remain compatible.
 !internal/starter/packs/*.tcade
+!internal/plugin/testdata/legacy-starters/*.tcade
 game.wasm
 
 .artifacts/
@@ -15,3 +16,5 @@ __pycache__/
 
 /target/
 /internal/plugin/testdata/*/target/
+
+.playwright-cli/

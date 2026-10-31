@@ -1,0 +1,24 @@
+{
+  "origin": "Termcade vendored Go starter packages preserved from main 9de13d1af144a89ba2ec1123b73b707a7f1bff60",
+  "purpose": "immutable legacy ABI compatibility fixtures; never installed as current starters",
+  "packages": [
+    {
+      "file": "asteroid.tcade",
+      "id": "aviorstudio/asteroid",
+      "version": "0.0.2",
+      "sha256": "0d705e21e932e3c0e6bc8cc7534caad47fbdb8b701998928d73a4169f53385a0"
+    },
+    {
+      "file": "brickough.tcade",
+      "id": "aviorstudio/brickough",
+      "version": "0.0.2",
+      "sha256": "3896be61e1499687a9fb26241923a3a79a2bd5c56d2875c3091016ec17ee50b5"
+    },
+    {
+      "file": "tetris.tcade",
+      "id": "aviorstudio/tetris",
+      "version": "0.0.2",
+      "sha256": "cb5a5d8832bebb9501445ae03889ca5f3bcf9cb28da56344befed57b644a29be"
+    }
+  ]
+}
