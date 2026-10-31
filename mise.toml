@@ -1,6 +1,8 @@
 [tools]
 "python" = "3.13.11"
 "go" = "1.27.3"
+"rust" = "1.94.0"
+"cargo:cargo-audit" = "0.22.2"
 "go:golang.org/x/vuln/cmd/govulncheck" = "1.7.0"
 "actionlint" = "1.7.12"
 "shellcheck" = "0.11.0"
@@ -8,6 +10,9 @@
 [env]
 TOOLS_ROOT = "{{ get_env(name='TOOLS_ROOT', default=config_root ~ '/.ci-tools') }}"
 GOTOOLCHAIN = "local"
+CARGO_TARGET_DIR = "{{ get_env(name='CARGO_TARGET_DIR', default=config_root ~ '/.artifacts/rust-target') }}"
+CARGO_BUILD_JOBS = "2"
+CARGO_INCREMENTAL = "0"
 PYTHONDONTWRITEBYTECODE = "1"
 "VERSION" = "{{ get_env(name='VERSION', default='dev') }}"
 

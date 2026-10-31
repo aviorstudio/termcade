@@ -1,0 +1,15 @@
+[package]
+name = "termcade-hang-fixture"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.94"
+publish = false
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+termcade-sdk = { path = "../../../../sdk" }
+
+[profile.release]
+panic = "abort"

@@ -90,3 +90,39 @@ jobs:
         set -euo pipefail
         mise run check
     needs: build
+
+  rust-core:
+    name: Rust SDK and sandbox contracts
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      MISE_GITHUB_TOKEN: ${{ github.token }}
+    steps:
+    - name: Check out source
+      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      with:
+        persist-credentials: false
+    - name: Set up development tools
+      uses: nicodes/tools/setup@091101094fedf5ce2e67c339c1c9c842d6a662dc
+      env:
+        GH_TOKEN: ${{ github.token }}
+      timeout-minutes: 5
+    - name: Install locked Rust components and guest target
+      run: |
+        rustup component add --toolchain 1.94.0 rustfmt clippy
+        rustup target add --toolchain 1.94.0 wasm32-wasip1
+        cargo fetch --locked
+    - name: Build independent ABI probe and hung guest
+      run: |
+        cargo build --locked --release --target wasm32-wasip1 --manifest-path internal/plugin/testdata/probe-rust/Cargo.toml
+        cargo build --locked --release --target wasm32-wasip1 --manifest-path internal/plugin/testdata/hang-rust/Cargo.toml
+    - name: Verify SDK, packages and sandbox execution
+      run: cargo test --workspace --all-targets --locked
+    - name: Verify Rust formatting and Clippy
+      run: |
+        cargo fmt --all --check
+        cargo fmt --manifest-path internal/plugin/testdata/probe-rust/Cargo.toml --check
+        cargo fmt --manifest-path internal/plugin/testdata/hang-rust/Cargo.toml --check
+        cargo clippy --workspace --all-targets --locked -- -D warnings
+    - name: Audit locked Rust dependencies
+      run: cargo audit --deny warnings

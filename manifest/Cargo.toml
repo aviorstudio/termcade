@@ -1,0 +1,17 @@
+[package]
+name = "termcade-manifest"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.94"
+publish = false
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+termcade-sdk = { path = "../sdk" }
+tempfile = "3"
+thiserror = "2"
+toml = "0.9"
+zip = { version = "9", default-features = false, features = ["deflate"] }
+
+[dev-dependencies]
+crc32fast = "1"
