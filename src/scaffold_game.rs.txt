@@ -1,0 +1,28 @@
+//! Keep the ball up, then edit everything. All coordinates are logical units.
+use termcade_sdk::{self as sdk, Canvas, Game, Hud, HudField, Info, Key, KeyTracker, Status};
+struct Demo { paddle:f64, x:f64, y:f64, vx:f64, vy:f64, score:i64, lives:usize, keys:KeyTracker }
+impl Demo {
+    fn new() -> Self { Self { paddle:32.,x:32.,y:8.,vx:24.,vy:20.,score:0,lives:3,keys:KeyTracker::new(sdk::DEFAULT_HOLD_TICKS) } }
+    fn serve(&mut self) { self.x=32.;self.y=8.;self.vx=24.;self.vy=20.; }
+}
+impl Game for Demo {
+    fn info(&self)->Info { Info { id:"@ID@".into(),title:"@TITLE@".into(),pixel_w:64,pixel_h:40 } }
+    fn reset(&mut self) { self.keys.reset();self.score=0;self.lives=3;self.paddle=32.;self.serve(); }
+    fn handle_key(&mut self,key:Key) { self.keys.press(key); }
+    fn handle_key_up(&mut self,key:Key) { self.keys.release(key); }
+    fn update(&mut self)->Status {
+        self.keys.tick();
+        if self.keys.held(Key::Left) { self.paddle-=50.*sdk::DT; }
+        if self.keys.held(Key::Right) { self.paddle+=50.*sdk::DT; }
+        self.paddle=self.paddle.clamp(6.,58.);self.x+=self.vx*sdk::DT;self.y+=self.vy*sdk::DT;
+        if self.x<1. || self.x>63. { self.vx = -self.vx; }
+        if self.y<1. { self.vy=self.vy.abs(); }
+        if self.vy>0. && (36. ..=38.).contains(&self.y) && (self.x-self.paddle).abs()<=6. { self.vy = -self.vy*1.04;self.vx*=1.04;self.score+=1; }
+        if self.y>40. { self.lives-=1;if self.lives==0 { return Status::GameOver; } self.serve(); }
+        Status::Running
+    }
+    fn draw(&mut self,canvas:&mut Canvas) { canvas.fill_rect_f(self.paddle-6.,37.,12.,2.,sdk::WHITE);canvas.fill_circle(self.x,self.y,1.,sdk::YELLOW); }
+    fn score(&self)->i64 { self.score }
+    fn hud(&self)->Hud { Hud { fields:vec![HudField { label:"SCORE".into(),value:format!("{:06}",self.score),accent:true },HudField { label:String::new(),value:"● ".repeat(self.lives).trim().into(),accent:true }],hint:"←/→ keep the ball up".into() } }
+}
+sdk::termcade_game!(Demo::new);

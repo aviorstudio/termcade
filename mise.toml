@@ -1,21 +1,23 @@
 [tools]
 "python" = "3.13.11"
-"go" = "1.27.3"
-"go:golang.org/x/vuln/cmd/govulncheck" = "1.7.0"
+"rust" = "1.94.0"
+"cargo:cargo-audit" = "0.22.2"
 "actionlint" = "1.7.12"
 "shellcheck" = "0.11.0"
 
 [env]
 TOOLS_ROOT = "{{ get_env(name='TOOLS_ROOT', default=config_root ~ '/.ci-tools') }}"
-GOTOOLCHAIN = "local"
+CARGO_TARGET_DIR = "{{ get_env(name='CARGO_TARGET_DIR', default=config_root ~ '/.artifacts/rust-target') }}"
+CARGO_BUILD_JOBS = "2"
+CARGO_INCREMENTAL = "0"
 PYTHONDONTWRITEBYTECODE = "1"
 "VERSION" = "{{ get_env(name='VERSION', default='dev') }}"
 
 [tasks."install"]
-run = ["go mod download", "go -C sdk mod download"]
+run = ["rustup component add --toolchain 1.94.0 rustfmt clippy", "rustup target add --toolchain 1.94.0 wasm32-wasip1", "cargo fetch --locked"]
 
 [tasks."lint"]
-run = ["bash scripts/lint.sh", "actionlint", "bash -euo pipefail -c 'shellcheck scripts/*.sh .github/scripts/*.sh'"]
+run = ["bash scripts/lint.sh"]
 
 [tasks."unit"]
 run = "python3 \"$TOOLS_ROOT/helpers/verification.py\" test --name unit --artifact dist --environment VERSION --environment COMMIT --revision-environment COMMIT -- mise run _unit"
@@ -26,11 +28,11 @@ run = "python3 \"$TOOLS_ROOT/helpers/verification.py\" build --name build --arti
 depends = ["install"]
 
 [tasks."artifact-check"]
-run = ["bash -euo pipefail -c '(cd dist && sha256sum --check --strict checksums.txt)'"]
+run = ["python3 scripts/check_archives.py"]
 depends = ["build"]
 
 [tasks."vuln"]
-run = ["govulncheck ./..."]
+run = ["cargo audit --deny warnings --file Cargo.lock --db .artifacts/advisory-db"]
 
 [tasks."clean"]
 run = ["python3 -c 'import shutil; [shutil.rmtree(p,ignore_errors=True) for p in ['\"'\"'dist'\"'\"', '\"'\"'.artifacts'\"'\"']]'"]

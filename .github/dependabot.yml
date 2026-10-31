@@ -5,7 +5,7 @@ updates:
   schedule:
     interval: weekly
     day: monday
-    time: "09:39"
+    time: 09:39
     timezone: Etc/UTC
   groups:
     routine-updates:
@@ -92,14 +92,15 @@ updates:
   open-pull-requests-limit: 5
   cooldown:
     default-days: 3
-- package-ecosystem: gomod
+- package-ecosystem: cargo
   directories:
   - /
-  - /sdk
+  - /internal/plugin/testdata/probe-rust
+  - /internal/plugin/testdata/hang-rust
   schedule:
     interval: weekly
     day: monday
-    time: "09:39"
+    time: 09:39
     timezone: Etc/UTC
   open-pull-requests-limit: 5
   cooldown:
