@@ -123,5 +123,6 @@ jobs:
     with:
       tools-ref: f412061a7a3f0914db9e09d1159e69504aee8706
       binary: termcade
+      extra-files: THIRD_PARTY_NOTICES.txt
       tag: ${{ needs.identity.outputs.tag }}
       artifact-id: ${{ needs.accept-cli.outputs.artifact-id }}

@@ -97,5 +97,5 @@ jobs:
         See README.md for the author quickstart and the
         wasm ABI this SDK targets.
         NOTES
-        gh release create "$TAG" --target "$GITHUB_SHA" \
+        gh release create "$TAG" --target "$GITHUB_SHA" --latest=false \
           --title "$TAG" --notes-file .artifacts/sdk-release-notes.txt

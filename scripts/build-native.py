@@ -18,3 +18,6 @@ else:
     assert system in ('Linux','Darwin','Windows') and arch in ('x86_64','arm64')
     env=dict(os.environ,RELEASE_PLATFORM=system,RELEASE_ARCH=arch,RELEASE_EXTENSION='zip' if system=='Windows' else 'tar.gz')
     subprocess.run(['python3','scripts/package-cli.py'],env=env,check=True)
+
+# Carry the notice for seed data embedded by the Rust starter games.
+shutil.copyfile("THIRD_PARTY_NOTICES.txt", "dist/THIRD_PARTY_NOTICES.txt")
