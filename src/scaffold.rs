@@ -46,7 +46,7 @@ pub fn new(args: &[String]) -> Result<()> {
     fs::create_dir_all(dir.join("src"))?;
     let sdk_rev = option_env!("COMMIT")
         .filter(|v| v.len() == 40 && v.bytes().all(|b| b.is_ascii_hexdigit()))
-        .unwrap_or("601a465c8a1ecaa4a973ba3c1c758f0bb3826066");
+        .unwrap_or("c1885e18633072ad8e212ea8e3a4ba4240c0c2cf");
     let cargo = format!(
         "[package]\nname = {}\nversion = \"0.1.0\"\nedition = \"2024\"\nrust-version = \"1.94\"\n\n[lib]\ncrate-type = [\"cdylib\"]\n\n[dependencies]\ntermcade-sdk = {{ git = \"https://github.com/aviorstudio/termcade\", rev = \"{sdk_rev}\" }}\n\n[profile.release]\npanic = \"abort\"\n\n[workspace]\n",
         serde_json::to_string(&format!("game-{slug}"))?
