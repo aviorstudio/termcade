@@ -1,13 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
-unformatted="$(gofmt -l .)"
-if [ -n "$unformatted" ]; then
-  echo "::error::gofmt would change these files:"
-  echo "$unformatted"
-  exit 1
-fi
-
-go vet ./...
-go vet ./sdk/...
-
-GOWORK=off go vet ./...
+cargo fmt --all --check
+cargo fmt --manifest-path internal/plugin/testdata/probe-rust/Cargo.toml --check
+cargo fmt --manifest-path internal/plugin/testdata/hang-rust/Cargo.toml --check
+cargo clippy --workspace --all-targets --locked -- -D warnings
+actionlint
+shellcheck scripts/*.sh .github/scripts/*.sh

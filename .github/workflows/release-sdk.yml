@@ -18,7 +18,7 @@ jobs:
     runs-on: ubuntu-24.04
     env:
       MISE_GITHUB_TOKEN: ${{ github.token }}
-    timeout-minutes: 20
+    timeout-minutes: 45
     permissions:
       contents: write
       attestations: read
@@ -52,6 +52,13 @@ jobs:
           esac
           version="${major}.${minor}.${patch}"
         fi
+        python3 - "$version" <<'PYSDK'
+        import sys,tomllib
+        from pathlib import Path
+        version=tomllib.loads(Path("sdk/Cargo.toml").read_text())["package"]["version"]
+        if version!=sys.argv[1]:
+            raise SystemExit(f"Commit the Cargo package version {sys.argv[1]} before releasing (currently {version}).")
+        PYSDK
         tag="${prefix}${version}"
         if git rev-parse -q --verify "refs/tags/$tag" >/dev/null; then
           echo "Tag already exists: $tag" >&2
@@ -59,7 +66,7 @@ jobs:
         fi
         echo "tag=$tag" >> "$GITHUB_OUTPUT"
     - name: Set up development tools
-      uses: nicodes/tools/setup@091101094fedf5ce2e67c339c1c9c842d6a662dc
+      uses: nicodes/tools/setup@f412061a7a3f0914db9e09d1159e69504aee8706
       env:
         GH_TOKEN: ${{ github.token }}
     - name: Install pinned build and validation tools
@@ -79,15 +86,16 @@ jobs:
       run: |-
         set -euo pipefail
         version="${TAG#sdk/}"
-        cat > notes.md <<NOTES
+        mkdir -p .artifacts
+        cat > .artifacts/sdk-release-notes.txt <<NOTES
         termcade sdk $version
 
         \`\`\`sh
-        go get github.com/aviorstudio/termcade/sdk@$version
+        cargo add termcade-sdk --git https://github.com/aviorstudio/termcade --tag "$TAG"
         \`\`\`
 
         See README.md for the author quickstart and the
         wasm ABI this SDK targets.
         NOTES
         gh release create "$TAG" --target "$GITHUB_SHA" \
-          --title "$TAG" --notes-file notes.md
+          --title "$TAG" --notes-file .artifacts/sdk-release-notes.txt

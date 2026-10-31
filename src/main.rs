@@ -8,7 +8,11 @@ mod ui;
 #[error("unknown command {0:?}")]
 struct UnknownCommand(String);
 fn version() -> &'static str {
-    option_env!("VERSION").unwrap_or("dev")
+    option_env!("VERSION").unwrap_or(if cfg!(debug_assertions) {
+        "dev"
+    } else {
+        concat!("v", env!("CARGO_PKG_VERSION"))
+    })
 }
 fn terminal_text(value: &str, max: usize) -> String {
     let mut out = String::new();

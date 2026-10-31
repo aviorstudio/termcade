@@ -8,6 +8,11 @@ use std::{
 use url::Url;
 
 pub fn config_dir() -> anyhow::Result<PathBuf> {
+    // An explicit XDG override isolates accounts on every supported OS. Without
+    // one, retain the original CLI's native macOS/Windows/Linux locations.
+    if let Some(path) = std::env::var_os("XDG_CONFIG_HOME").filter(|p| !p.is_empty()) {
+        return Ok(PathBuf::from(path).join("termcade"));
+    }
     #[cfg(target_os = "windows")]
     let path = std::env::var_os("AppData").map(PathBuf::from);
     #[cfg(target_os = "macos")]

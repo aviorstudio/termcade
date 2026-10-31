@@ -17,6 +17,10 @@ pub async fn run(args: &[String]) -> Result<()> {
     match args[0].as_str() {
         "help" | "-h" | "--help" => print!("{USAGE}"),
         "version" | "-v" | "--version" => println!("termcade {}", crate::version()),
+        "--build-info" => println!(
+            "{}",
+            json!({"version":crate::version(),"commit":option_env!("COMMIT").unwrap_or("unknown"),"target":env!("TERMCADE_BUILD_TARGET")})
+        ),
         "add" | "install" => add(&args[1..]).await?,
         "remove" | "uninstall" => remove(&args[1..]).await?,
         "list" => list()?,
