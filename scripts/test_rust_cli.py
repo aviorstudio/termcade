@@ -205,7 +205,7 @@ class Journeys(unittest.TestCase):
         return result
 
     def test_help_version_unknown_and_usage(self):
-        self.assertEqual(self.run_cli('help').stdout, (ROOT/'src/usage.txt').read_text())
+        self.assertEqual(self.run_cli('help').stdout, (ROOT/'src/usage.txt').read_text(encoding='utf-8'))
         self.assertEqual(self.run_cli('version').stdout, f'termcade {EXPECTED_VERSION}\n')
         result = self.run_cli('unknown-command',code=2)
         self.assertIn('unknown command "unknown-command"',result.stderr)
@@ -360,6 +360,12 @@ class Journeys(unittest.TestCase):
             self.assertEqual(archive.read('game.wasm')[:4],b'\0asm')
         self.run_cli('dev','install',package)
         self.assertTrue((self.root/'data/termcade/games/test/my-game/game.wasm').is_file())
+        good_package=package.read_bytes()
+        (game/'src/lib.rs').write_text('compile_error!("fixture compile failure");\n',encoding='utf-8')
+        failed=self.run_cli('dev','build',game,code=1,timeout=300)
+        self.assertIn('fixture compile failure',failed.stderr)
+        self.assertNotIn('"reason":"compiler-artifact"',failed.stderr)
+        self.assertEqual(package.read_bytes(),good_package,'failed build replaced the working package')
 
 
 def main():

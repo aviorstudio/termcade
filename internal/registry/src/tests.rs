@@ -35,6 +35,10 @@ impl Mock {
                         Err(_) => return,
                     }
                 };
+                socket.set_nonblocking(false).unwrap();
+                socket
+                    .set_write_timeout(Some(Duration::from_secs(5)))
+                    .unwrap();
                 socket
                     .set_read_timeout(Some(Duration::from_secs(2)))
                     .unwrap();

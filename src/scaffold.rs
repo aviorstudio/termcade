@@ -128,12 +128,20 @@ pub async fn build(args: &[String], runtime: &Runtime) -> Result<()> {
             .context("cargo build exceeded five minutes")??;
     child.done = true;
     let log = String::from_utf8(output).context("cargo emitted non-UTF8 metadata")?;
-    anyhow::ensure!(
-        status.success(),
-        "cargo build failed: {status}\n{}\n{}",
-        crate::terminal_text(&log, 12000),
-        crate::terminal_text(&String::from_utf8_lossy(&errors), 4000)
-    );
+    if !status.success() {
+        let diagnostics = log
+            .lines()
+            .filter_map(|line| serde_json::from_str::<serde_json::Value>(line).ok())
+            .filter(|value| value["reason"] == "compiler-message")
+            .filter_map(|value| value["message"]["rendered"].as_str().map(str::to_owned))
+            .collect::<Vec<_>>()
+            .join("\n");
+        anyhow::bail!(
+            "cargo build failed: {status}\n{}\n{}",
+            crate::terminal_text(&diagnostics, 12000),
+            crate::terminal_text(&String::from_utf8_lossy(&errors), 4000)
+        );
+    }
     let artifacts: Vec<_> = log
         .lines()
         .filter_map(|line| serde_json::from_str::<serde_json::Value>(line).ok())

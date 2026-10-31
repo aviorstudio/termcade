@@ -57,6 +57,8 @@ jobs:
       CARGO_PROFILE_DEV_DEBUG: '0'
       PYTHONDONTWRITEBYTECODE: '1'
       RUST_TARGET: ${{ matrix.rust-target }}
+      RUSTUP_TOOLCHAIN: 1.94.0
+      PYTHONUTF8: "1"
       CC_x86_64_unknown_linux_musl: musl-gcc
       CC_aarch64_unknown_linux_musl: musl-gcc
     steps:
