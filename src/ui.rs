@@ -1106,7 +1106,9 @@ impl App {
                 match result {
                     Ok(game) => {
                         self.scores.touch(&game.manifest.game.id);
-                        self.scores.save()?;
+                        if let Err(error) = self.scores.save() {
+                            self.notice = format!("Scores could not be saved: {error}");
+                        }
                         self.page = Page::Game(game.manifest.game.id.clone());
                         self.game = Some(game);
                         self.mode = Mode::Playing;
@@ -1123,6 +1125,7 @@ impl App {
                 result,
             } if generation == self.generation => {
                 self.loading = false;
+                self.mutating = false;
                 let reply = match result {
                     Ok(reply) => reply,
                     Err(e) => {
@@ -1139,7 +1142,9 @@ impl App {
                     for record in &snapshot.activity {
                         self.scores.merge(record);
                     }
-                    self.scores.save()?;
+                    if let Err(error) = self.scores.save() {
+                        self.notice = format!("Scores could not be saved: {error}");
+                    }
                     self.snapshot = snapshot;
                     if gained {
                         self.sync_activity();
@@ -1183,7 +1188,11 @@ impl App {
                 if let Some(session) = reply.session
                     && self.pairing.is_some()
                 {
-                    self.backend.store.save(&session)?;
+                    if let Err(error) = self.backend.store.save(&session) {
+                        self.notice =
+                            format!("Could not save this login: {error}. R requests a new code.");
+                        return Ok(());
+                    }
                     self.pairing = None;
                     self.clear_private();
                     self.notice = "Signed in".into();
@@ -1241,7 +1250,9 @@ impl App {
                 false,
             );
         }
-        self.scores.save()?;
+        if let Err(error) = self.scores.save() {
+            self.notice = format!("Scores could not be saved: {error}");
+        }
         self.sync_activity();
         self.mode = Mode::Browse;
         self.game_nav = false;
@@ -1273,7 +1284,9 @@ impl App {
                         &game.manifest.game.version,
                         true,
                     );
-                    self.scores.save()?;
+                    if let Err(error) = self.scores.save() {
+                        self.notice = format!("Scores could not be saved: {error}");
+                    }
                     game.recorded = true;
                     self.mode = Mode::GameOver;
                     break;
@@ -1721,6 +1734,8 @@ pub async fn run() -> Result<()> {
     let mut events = EventStream::new();
     let mut tick = tokio::time::interval(Duration::from_nanos(1_000_000_000 / 60));
     tick.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
+    let shutdown = crate::shutdown();
+    tokio::pin!(shutdown);
     loop {
         terminal.draw(|frame| {
             app.width = frame.area().width;
@@ -1736,7 +1751,7 @@ pub async fn run() -> Result<()> {
             },
             Some(message)=rx.recv()=>app.message(message).await?,
             _=tick.tick()=>app.tick().await?,
-            _=crate::shutdown()=>break,
+            _=&mut shutdown=>break,
         }
     }
     app.close_game().await?;

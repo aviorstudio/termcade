@@ -121,7 +121,11 @@ pub(super) fn draw(app: &mut App, frame: &mut Frame) {
         ]))
         .block(
             Block::default()
-                .borders(Borders::BOTTOM)
+                .borders(if playing {
+                    Borders::NONE
+                } else {
+                    Borders::BOTTOM
+                })
                 .border_style(Style::default().fg(Color::DarkGray)),
         ),
         header,

@@ -132,6 +132,10 @@ jobs:
       run: cargo build --bin termcade --locked
     - name: Exercise offline CLI and Rust authoring journeys
       run: python3 scripts/test_rust_cli.py --binary .artifacts/rust-target/debug/termcade --wasm .artifacts/rust-target/wasm32-wasip1/release/termcade_probe_fixture.wasm
+    - name: Exercise real terminal, pairing and restoration journeys
+      run: |
+        python3 -m pip install --disable-pip-version-check --no-cache-dir --require-hashes --target .artifacts/pty-python -r scripts/test-requirements.txt
+        PYTHONPATH=.artifacts/pty-python python3 scripts/test_rust_tui.py --binary .artifacts/rust-target/debug/termcade --wasm .artifacts/rust-target/wasm32-wasip1/release/termcade_probe_fixture.wasm
     - name: Upload tested native Rust CLI
       uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
       with:
