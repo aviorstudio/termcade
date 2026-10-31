@@ -1,0 +1,33 @@
+termcade — an arcade in your terminal
+
+usage:
+  termcade                     play (marketplace included — press m)
+  termcade add <author/slug>   add a marketplace game to your account and
+                               install it on this machine
+  termcade remove <id>         remove an added game (id is author/slug)
+  termcade list                list the games in your arcade
+  termcade sync                install everything on your account that is
+                               missing here
+
+  termcade publish <repo> <tag> [asset]
+                               publish a release: point the marketplace at a
+                               .tcade on one of your GitHub releases
+
+  termcade org                 studios you publish under (list · new · show ·
+                               add · remove)
+  termcade keys                publish keys for CI (list · new · revoke)
+
+  termcade whoami              who you are and what you can publish under
+  termcade username <name>     claim or rename your handle (or check one is
+                               free, signed out)
+  termcade account delete <u>  delete your account
+
+  termcade login               sign in securely in your browser
+  termcade logout              sign out
+
+  termcade dev new <id> [dir]  start your own game (id is author/slug)
+  termcade dev build [dir]     build a game directory into a .tcade package
+  termcade dev install <file>  install a local .tcade while developing
+
+This arcade is also the whole dev kit: dev new, hack, dev build, dev install,
+play. See README.md to get started.

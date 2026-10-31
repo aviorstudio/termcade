@@ -167,7 +167,7 @@ impl TuiStore {
         if std::env::var("TERMCADE_REGISTRY")
             .unwrap_or_default()
             .is_empty()
-            && let Some(session) = load_at(&path)?
+            && let Ok(Some(session)) = load_at(&path)
         {
             registry = registry_url(Some(&session));
         }

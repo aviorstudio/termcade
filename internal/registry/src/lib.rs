@@ -58,11 +58,16 @@ pub fn safe_text(value: &str, max: usize) -> String {
     }
     result.trim().to_string()
 }
+fn null_default<'de, D: serde::Deserializer<'de>, T: Deserialize<'de> + Default>(
+    decoder: D,
+) -> std::result::Result<T, D::Error> {
+    Ok(Option::<T>::deserialize(decoder)?.unwrap_or_default())
+}
 macro_rules! model {
     ($name:ident { $($field:ident : $kind:ty),* $(,)? }) => {
         #[derive(Clone, Debug, Default, Deserialize, Serialize)]
         #[serde(default)]
-        pub struct $name { $(pub $field: $kind),* }
+        pub struct $name { $(#[serde(deserialize_with="null_default")] pub $field: $kind),* }
     }
 }
 model!(Game {
