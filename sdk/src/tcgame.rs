@@ -22,7 +22,7 @@ mod reactor {
         ((u64::from(high) << 32) | u64::from(low)) as i64
     }
     pub fn initialize(cols: i32, rows: i32, game: Box<dyn Game>) -> i64 {
-        if !(1..=3).contains(&cols) || !(1..=3).contains(&rows) {
+        if !(1..=32).contains(&cols) || !(1..=32).contains(&rows) {
             return 0;
         }
         let info = game.info();

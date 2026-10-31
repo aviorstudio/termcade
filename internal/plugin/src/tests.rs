@@ -55,6 +55,31 @@ async fn rust_sdk_guest_roundtrip_keeps_ticks_keys_pixels_hud_gameover_and_reset
 }
 
 #[tokio::test]
+async fn rust_sdk_guest_supports_browser_framebuffers_above_terminal_density() {
+    let runtime = Runtime::new().unwrap();
+    let wasm = fs::read(fixture("probe")).expect("build the locked Rust WASIp1 probe first");
+    for scale in [4, 8, 16, 32] {
+        let shape = CellShape::host(scale, scale);
+        let mut game = runtime
+            .load("browser-probe", &wasm, info(), shape.clone())
+            .await
+            .unwrap();
+        let mut canvas = Canvas::new(16, 8, BLACK, shape);
+        assert_eq!(canvas.pixel_size(), (16 * scale, 4 * scale));
+        game.reset().await.unwrap();
+        game.key(Key::A, true).await.unwrap();
+        game.update().await.unwrap();
+        game.draw(&mut canvas).await.unwrap();
+        assert_eq!(game.score().await.unwrap(), 10);
+        assert_eq!(canvas.pixels().iter().filter(|&&p| p != BLACK).count(), 2);
+        game.key(Key::A, false).await.unwrap();
+        game.draw(&mut canvas).await.unwrap();
+        assert_eq!(canvas.pixels().iter().filter(|&&p| p != BLACK).count(), 1);
+        assert!(game.error().is_none());
+    }
+}
+
+#[tokio::test]
 async fn legacy_go_starter_fixtures_run_in_the_rust_host_at_every_density() {
     let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("testdata/legacy-starters");
     let source: serde_json::Value =

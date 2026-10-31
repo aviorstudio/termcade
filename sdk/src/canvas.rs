@@ -26,7 +26,10 @@ impl Canvas {
             "canvas needs a positive width and positive even height"
         );
         assert!(
-            shape.cols > 0 && shape.rows > 0 && shape.cols * shape.rows <= 9,
+            shape.cols > 0
+                && shape.rows > 0
+                && (shape.cols.checked_mul(shape.rows).is_some_and(|n| n <= 9)
+                    || shape.glyphs.is_empty()),
             "invalid cell subdivision"
         );
         let fw = w.checked_mul(shape.cols).expect("canvas width overflow");
@@ -179,6 +182,10 @@ impl Canvas {
         }
     }
     pub fn cell(&self, x: usize, y: usize) -> Cell {
+        assert!(
+            !self.shape.glyphs.is_empty() && self.shape.cols * self.shape.rows <= 9,
+            "glyph rendering needs a terminal cell shape"
+        );
         let mut buffer = [Color(0); 9];
         let mut n = 0;
         for row in 0..self.shape.rows {
