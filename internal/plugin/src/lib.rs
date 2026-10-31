@@ -137,7 +137,7 @@ impl Runtime {
         {
             bail!("invalid host playfield requirements");
         }
-        if shape.cols == 0 || shape.rows == 0 || shape.cols > 3 || shape.rows > 3 {
+        if shape.cols == 0 || shape.rows == 0 || shape.cols > 32 || shape.rows > 32 {
             bail!("invalid host cell subdivision");
         }
         let module = self.compile(key, wasm)?;
