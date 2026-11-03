@@ -95,8 +95,8 @@ updates:
 - package-ecosystem: cargo
   directories:
   - /
-  - /internal/plugin/testdata/probe-rust
-  - /internal/plugin/testdata/hang-rust
+  - /crates/plugin/testdata/probe-rust
+  - /crates/plugin/testdata/hang-rust
   schedule:
     interval: weekly
     day: monday
