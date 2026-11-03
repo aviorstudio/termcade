@@ -1,4 +1,4 @@
-<!-- Generated from private documentation source. Do not edit directly. Source SHA256: ee5aeb42450e76585edd2687fcfc67b677c40d4d96ed899032c909ff728a88c4 -->
+<!-- Generated from private documentation source. Do not edit directly. Source SHA256: 842fc002e540921556efa24dcfe32749bf3771fb18b55c4fbe6cede999ff0c14 -->
 
 # termcade
 
@@ -71,7 +71,7 @@ Tool versions and native tasks live in `mise.toml`. Prepare the pinned helper so
 
 ```sh
 git clone https://github.com/nicodes/tools.git .ci-tools
-git -C .ci-tools checkout --detach f412061a7a3f0914db9e09d1159e69504aee8706
+git -C .ci-tools checkout --detach a1c0321f3b4917a7e99eca42e241e46670f6e1e1
 mise install
 mise run check
 ```
