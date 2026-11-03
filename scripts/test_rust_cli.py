@@ -204,6 +204,44 @@ class Journeys(unittest.TestCase):
         self.assertEqual(result.returncode, code, (args,result.returncode,result.stdout,result.stderr))
         return result
 
+    def test_machine_results_keep_authentication_and_progress_out_of_stdout(self):
+        self.sign_in()
+        result=self.run_cli('--json','whoami')
+        value=json.loads(result.stdout)
+        self.assertTrue(value['ok'])
+        self.assertEqual(value['result']['account']['email'],'player@example.test')
+        self.assertNotIn(TOKEN,result.stdout+result.stderr)
+        result=self.run_cli('--json','keys','new','ci','player')
+        value=json.loads(result.stdout)
+        self.assertEqual(value['result']['token'],KEY)
+        self.assertNotIn(KEY,result.stderr)
+        self.assertEqual(result.stdout.count('\n'),1)
+        result=self.run_cli('--json','keys')
+        self.assertNotIn(KEY,result.stdout+result.stderr)
+        self.assertEqual(json.loads(result.stdout)['result']['keys'][0]['name'],'ci')
+
+    def test_machine_failure_preserves_server_correlation_and_refuses_interaction(self):
+        self.sign_in()
+        self.state.fail[('GET','/v1/me')]=(503,dict(error=dict(code='unavailable',message='Please retry.',request_id='server-fixture-123')))
+        value=json.loads(self.run_cli('--json','whoami',code=1).stdout)
+        self.assertEqual(value['error'],dict(code='unavailable',message='Please retry.',status=503,request_id='server-fixture-123'))
+        self.state.requests.clear()
+        for args in [('--json',),('--json','login')]:
+            self.assertFalse(json.loads(self.run_cli(*args,code=1).stdout)['ok'])
+        self.assertEqual(self.state.requests,[])
+        self.assertEqual(json.loads(self.run_cli('--json','unknown-command',code=2).stdout)['error']['code'],'invalid_usage')
+
+    def test_machine_metadata_and_scaffold_report_actual_outputs(self):
+        value=json.loads(self.run_cli('--json','version').stdout)
+        self.assertEqual(value['result']['version'],EXPECTED_VERSION)
+        game=self.root/'machine game'
+        result=self.run_cli('--json','dev','new','test/machine-game',game)
+        value=json.loads(result.stdout)
+        self.assertEqual(value['result']['id'],'test/machine-game')
+        self.assertEqual(Path(value['result']['path']),game)
+        self.assertTrue((game/'termcade.toml').is_file())
+        self.assertIn('created',result.stderr)
+
     def test_help_version_unknown_and_usage(self):
         self.assertEqual(self.run_cli('help').stdout, (ROOT/'src/usage.txt').read_text(encoding='utf-8'))
         self.assertEqual(self.run_cli('version').stdout, f'termcade {EXPECTED_VERSION}\n')

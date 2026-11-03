@@ -1,4 +1,4 @@
-<!-- Generated from private documentation source. Do not edit directly. Source SHA256: 5481be7f4b12a8284fafd2c497227b431e3b74b28fd34333a6fa43922b04a315 -->
+<!-- Generated from private documentation source. Do not edit directly. Source SHA256: 842fc002e540921556efa24dcfe32749bf3771fb18b55c4fbe6cede999ff0c14 -->
 
 # termcade
 
@@ -36,6 +36,12 @@ Tab and Shift+Tab change focus, arrows select, Enter activates, Esc goes back or
 
 `TERMCADE_PIXELS` selects `quad`, `sextant`, `half` or `ascii` rendering. Settings saves a preferred style for the next game start. Local scores survive offline play and sync with your account when you reconnect.
 
+## Machine commands
+
+Place `--json` before a finite command, for example `termcade --json whoami`, `termcade --json list` or `termcade --json dev new you/my-game`. Stdout contains one versioned `{v, ok, result}` or `{v, ok, error}` document; progress uses stderr. API failures retain safe messages, status, code and server request ID. Help/version succeed, unknown commands exit 2 and failed operations exit 1. JSON mode refuses the default terminal interface and interactive browser login. Creating a publishing key returns its one-time token in the explicit command result; account and key-list results omit saved credentials.
+
+Configuration follows `XDG_CONFIG_HOME` and data follows `XDG_DATA_HOME`, with native platform defaults when unset. `TERMCADE_REGISTRY` explicitly selects the registry; a saved session remains scoped to its registry. `TERMCADE_TOKEN` supplies a publishing key for `publish`.
+
 ## Build a game
 
 Install Rust 1.94 or later, then:
@@ -65,9 +71,13 @@ Tool versions and native tasks live in `mise.toml`. Prepare the pinned helper so
 
 ```sh
 git clone https://github.com/nicodes/tools.git .ci-tools
-git -C .ci-tools checkout --detach f412061a7a3f0914db9e09d1159e69504aee8706
+git -C .ci-tools checkout --detach a1c0321f3b4917a7e99eca42e241e46670f6e1e1
 mise install
 mise run check
 ```
 
 The gate checks Rust formatting, Clippy, SDK and sandbox contracts, CLI and terminal journeys, installer behavior, release archives and locked dependencies. GitHub Actions builds the five native Linux, macOS and Windows archives. Source and output receipts remain in `.artifacts/verification`.
+
+## Contributor task interface
+
+Contributor tool versions and task entry points live in the native Mise configuration. Use `mise run lint` for source checks, `mise run test` for the applicable behavioral tests, and `mise run check` for the complete supported gate. `mise run clean` removes declared generated outputs while preserving source, credentials and retained data. This package has no separate Mise development service; use its native entry points directly.

@@ -1,9 +1,29 @@
 use anyhow::{Result, bail};
 use reqwest::Method;
-use serde_json::json;
+use serde_json::{Value, json};
 use std::{collections::HashSet, fs};
 use termcade_plugin::Runtime;
 use termcade_registry::{self as registry, Client, Error, HandleOwner, Session};
+static MACHINE: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+static RESULT: std::sync::Mutex<Option<Value>> = std::sync::Mutex::new(None);
+pub fn configure(value: bool) {
+    MACHINE.store(value, std::sync::atomic::Ordering::Relaxed);
+}
+pub fn machine() -> bool {
+    MACHINE.load(std::sync::atomic::Ordering::Relaxed)
+}
+pub fn record(value: Value) {
+    if machine() {
+        *RESULT.lock().unwrap() = Some(value);
+    }
+}
+pub fn take_result() -> Value {
+    RESULT
+        .lock()
+        .unwrap()
+        .take()
+        .unwrap_or_else(|| json!({"completed":true}))
+}
 pub const USAGE: &str = include_str!("usage.txt");
 fn require(why: &str) -> Result<(Client, Session)> {
     let session = registry::load_session()?.ok_or_else(|| anyhow::anyhow!("{why}"))?;
@@ -14,13 +34,31 @@ fn out(value: &str) -> String {
     registry::safe_text(value, 4096)
 }
 pub async fn run(args: &[String]) -> Result<()> {
+    if machine() && args[0] == "login" {
+        bail!("login requires a browser approval flow; use it without --json");
+    }
     match args[0].as_str() {
-        "help" | "-h" | "--help" => print!("{USAGE}"),
-        "version" | "-v" | "--version" => println!("termcade {}", crate::version()),
-        "--build-info" => println!(
-            "{}",
-            json!({"version":crate::version(),"commit":option_env!("COMMIT").unwrap_or("unknown"),"target":env!("TERMCADE_BUILD_TARGET")})
-        ),
+        "help" | "-h" | "--help" => {
+            if machine() {
+                record(json!({"help":USAGE}));
+            } else {
+                print!("{USAGE}");
+            }
+        }
+        "version" | "-v" | "--version" => {
+            record(
+                json!({"version":crate::version(),"commit":option_env!("COMMIT").unwrap_or("unknown")}),
+            );
+            crate::notice!("termcade {}", crate::version());
+        }
+        "--build-info" => {
+            let value = json!({"version":crate::version(),"commit":option_env!("COMMIT").unwrap_or("unknown"),"target":env!("TERMCADE_BUILD_TARGET")});
+            if machine() {
+                record(value);
+            } else {
+                println!("{value}");
+            }
+        }
         "add" | "install" => add(&args[1..]).await?,
         "remove" | "uninstall" => remove(&args[1..]).await?,
         "list" => list()?,
@@ -28,7 +66,8 @@ pub async fn run(args: &[String]) -> Result<()> {
         "login" => login(&args[1..]).await?,
         "logout" => {
             registry::clear_session()?;
-            println!("logged out");
+            record(json!({"logged_in":false}));
+            crate::notice!("logged out");
         }
         "publish" => publish(&args[1..]).await?,
         "keys" => keys(&args[1..]).await?,
@@ -52,7 +91,8 @@ pub async fn run(args: &[String]) -> Result<()> {
                     "package exceeds the byte limit"
                 );
                 let (m, dest) = crate::local::install(&fs::read(&args[2])?, &Runtime::new()?)?;
-                println!(
+                record(json!({"id":m.game.id,"version":m.game.version,"path":dest}));
+                crate::notice!(
                     "added {} {} → {}",
                     m.game.id,
                     m.game.version,
@@ -71,7 +111,8 @@ async fn install_from(client: &Client, id: &str, runtime: &Runtime) -> Result<()
     let (author, slug) = crate::local::parts(id)?;
     let file = client.download(author, slug).await.map_err(expired)?;
     let (m, dest) = crate::local::install(&fs::read(file.path())?, runtime)?;
-    println!(
+    record(json!({"id":m.game.id,"version":m.game.version,"path":dest}));
+    crate::notice!(
         "added {} {} → {}",
         m.game.id,
         m.game.version,
@@ -133,7 +174,8 @@ async fn remove(args: &[String]) -> Result<()> {
         }
     }
     crate::local::remove(id)?;
-    println!("removed {id}");
+    record(json!({"id":id,"removed":true}));
+    crate::notice!("removed {id}");
     Ok(())
 }
 fn list() -> Result<()> {
@@ -141,14 +183,17 @@ fn list() -> Result<()> {
         eprintln!("termcade: starter pack: {e}");
     }
     let games = crate::local::discover()?;
+    record(
+        json!({"games":games.iter().map(|game|json!({"id":game.id,"title":game.title,"version":game.version(),"path":game.dir,"error":game.error})).collect::<Vec<_>>()}),
+    );
     if games.is_empty() {
-        println!("no games installed — run `termcade` and press m for the marketplace");
+        crate::notice!("no games installed — run `termcade` and press m for the marketplace");
     }
     for game in games {
         if game.error.is_empty() {
-            println!("{:<24} {:<28} installed", out(&game.title), out(&game.id));
+            crate::notice!("{:<24} {:<28} installed", out(&game.title), out(&game.id));
         } else {
-            println!(
+            crate::notice!(
                 "{:<24} {:<28} broken: {}",
                 out(&game.title),
                 out(&game.id),
@@ -162,7 +207,8 @@ pub async fn sync() -> Result<()> {
     let (client, _) = require("syncing your library requires an account — run `termcade login`")?;
     let library = client.library().await.map_err(expired)?;
     if library.is_empty() {
-        println!("nothing in your library yet — add a game and it will follow you");
+        record(json!({"restored":0}));
+        crate::notice!("nothing in your library yet — add a game and it will follow you");
         return Ok(());
     }
     if let Err(e) = crate::local::seed() {
@@ -198,13 +244,14 @@ pub async fn sync() -> Result<()> {
             }
         }
     }
+    record(json!({"restored":added,"failed":failed}));
     if failed > 0 {
         bail!("restored {added} game(s); {failed} could not be installed");
     }
     if added == 0 {
-        println!("your library is already here");
+        crate::notice!("your library is already here");
     } else {
-        println!("restored {added} game(s)");
+        crate::notice!("restored {added} game(s)");
     }
     Ok(())
 }
@@ -212,10 +259,10 @@ async fn login(args: &[String]) -> Result<()> {
     anyhow::ensure!(args.is_empty(), "usage: termcade login");
     let client = Client::new(&registry::registry_url(None), "")?;
     let session=client.device_login("termcade CLI",|uri,code| {
-        println!("\nUsing a browser, visit:\n  {uri}\n\nAnd enter this code:\n  {code}\n\nWaiting for approval (Ctrl+C to cancel)…");
+        crate::notice!("\nUsing a browser, visit:\n  {uri}\n\nAnd enter this code:\n  {code}\n\nWaiting for approval (Ctrl+C to cancel)…");
     }).await?;
     registry::save_session(&session)?;
-    println!(
+    crate::notice!(
         "logged in as {} ({})",
         out(&session.email),
         out(&session.registry)
@@ -260,7 +307,8 @@ async fn publish(args: &[String]) -> Result<()> {
     let published = Client::new(&registry::registry_url(session.as_ref()), token)?
         .publish(&args[0], &args[1], &asset)
         .await?;
-    println!(
+    record(json!(&published));
+    crate::notice!(
         "published {} {}\n  from   {} @ {} ({})\n  sha256 {}",
         out(&published.id),
         out(&published.version),
@@ -276,8 +324,13 @@ async fn keys(args: &[String]) -> Result<()> {
     match args.first().map(String::as_str).unwrap_or("list") {
         "list" => {
             let keys = client.keys().await?;
+            record(
+                json!({"keys":keys.iter().map(|key|json!({"id":key.id,"name":key.name,"username":key.username,"created_at":key.created_at,"last_used_at":key.last_used_at})).collect::<Vec<_>>()}),
+            );
             if keys.is_empty() {
-                println!("no publish keys — create one with `termcade keys new <name> <username>`");
+                crate::notice!(
+                    "no publish keys — create one with `termcade keys new <name> <username>`"
+                );
             }
             for key in keys {
                 let used = if key.last_used_at.is_empty() {
@@ -285,7 +338,7 @@ async fn keys(args: &[String]) -> Result<()> {
                 } else {
                     format!("last used {}", out(&key.last_used_at))
                 };
-                println!(
+                crate::notice!(
                     "{:<24} {:<20} {used}\n  {}",
                     out(&key.name),
                     out(&key.username),
@@ -303,12 +356,16 @@ async fn keys(args: &[String]) -> Result<()> {
                 registry::is_publish_key(&key.token),
                 "the marketplace returned a malformed publish key"
             );
-            println!(
-                "created {:?}, publishing as {}\n\n  {}\n",
-                out(&key.name),
-                out(&key.username),
-                key.token
-            );
+            if machine() {
+                record(json!(&key));
+            } else {
+                println!(
+                    "created {:?}, publishing as {}\n\n  {}\n",
+                    out(&key.name),
+                    out(&key.username),
+                    key.token
+                );
+            }
             eprintln!(
                 "that token is shown once and cannot be recovered — put it somewhere safe now"
             );
@@ -318,7 +375,8 @@ async fn keys(args: &[String]) -> Result<()> {
             client
                 .empty(Method::DELETE, &["v1", "keys", &args[1]], None)
                 .await?;
-            println!("revoked");
+            record(json!({"id":args[1],"revoked":true}));
+            crate::notice!("revoked");
         }
         _ => bail!("unknown keys subcommand; try: list · new <name> <username> · revoke <id>"),
     }
@@ -332,14 +390,15 @@ async fn org(args: &[String]) -> Result<()> {
     match args.first().map(String::as_str).unwrap_or("list") {
         "list" => {
             let me = client.me().await?;
+            record(json!(&me));
             if !me.username.is_empty() {
-                println!("{:<24} you", out(&me.username));
+                crate::notice!("{:<24} you", out(&me.username));
             }
             for org in &me.orgs {
-                println!("{:<24} studio ({})", out(&org.username), role(org.admin));
+                crate::notice!("{:<24} studio ({})", out(&org.username), role(org.admin));
             }
             if me.orgs.is_empty() {
-                println!("\nno studios — create one with `termcade org new <username>`");
+                crate::notice!("\nno studios — create one with `termcade org new <username>`");
             }
         }
         "new" => {
@@ -350,7 +409,8 @@ async fn org(args: &[String]) -> Result<()> {
             let org = client
                 .create_org(&args[1], args.get(2).map(String::as_str).unwrap_or(""), "")
                 .await?;
-            println!(
+            record(json!(&org));
+            crate::notice!(
                 "created {} — you are its admin\npublish as {}/<game>, and add people with `termcade org add {} <email>`",
                 out(&org.username),
                 out(&org.username),
@@ -360,24 +420,27 @@ async fn org(args: &[String]) -> Result<()> {
         "show" => {
             anyhow::ensure!(args.len() == 2, "usage: termcade org show <username>");
             let org = client.org(&args[1]).await?;
-            println!("{}", out(&org.username));
+            let mut result = json!({"organization":org});
+            crate::notice!("{}", out(&org.username));
             if !org.bio.is_empty() {
-                println!("  {}", out(&org.bio));
+                crate::notice!("  {}", out(&org.bio));
             }
             if org.games.is_empty() {
-                println!("  no published games");
+                crate::notice!("  no published games");
             }
             for game in org.games {
-                println!("  {}", out(&game));
+                crate::notice!("  {}", out(&game));
             }
             if let Ok(members) = client.members(&args[1]).await {
+                result["members"] = json!(&members);
                 if !members.is_empty() {
-                    println!();
+                    crate::notice!();
                 }
                 for m in members {
-                    println!("  {:<32} {}", out(&m.email), role(m.admin));
+                    crate::notice!("  {:<32} {}", out(&m.email), role(m.admin));
                 }
             }
+            record(result);
         }
         "add" => {
             anyhow::ensure!(
@@ -392,7 +455,8 @@ async fn org(args: &[String]) -> Result<()> {
                     Some(json!({"email":args[2],"admin":admin})),
                 )
                 .await?;
-            println!(
+            record(json!({"organization":args[1],"email":args[2],"admin":admin}));
+            crate::notice!(
                 "{} is now {} of {}",
                 out(&args[2]),
                 if admin { "an admin" } else { "a member" },
@@ -402,7 +466,8 @@ async fn org(args: &[String]) -> Result<()> {
         "edit" => {
             anyhow::ensure!(args.len() == 3, "usage: termcade org edit <org> <bio>");
             let org = client.update_org(&args[1], Some(&args[2]), None).await?;
-            println!("updated {}", out(&org.username));
+            record(json!(&org));
+            crate::notice!("updated {}", out(&org.username));
         }
         "remove" => {
             anyhow::ensure!(args.len() == 3, "usage: termcade org remove <org> <email>");
@@ -413,7 +478,8 @@ async fn org(args: &[String]) -> Result<()> {
                     None,
                 )
                 .await?;
-            println!("removed {} from {}", out(&args[2]), out(&args[1]));
+            record(json!({"organization":args[1],"email":args[2],"removed":true}));
+            crate::notice!("removed {} from {}", out(&args[2]), out(&args[1]));
         }
         "delete" => {
             let name = args.get(1).map(String::as_str).unwrap_or("<org>");
@@ -424,7 +490,8 @@ async fn org(args: &[String]) -> Result<()> {
             client
                 .empty(Method::DELETE, &["v1", "orgs", name], None)
                 .await?;
-            println!("dissolved {}", out(name));
+            record(json!({"organization":name,"deleted":true}));
+            crate::notice!("dissolved {}", out(name));
         }
         _ => bail!(
             "unknown org subcommand; try: list · new <username> [bio] · show <username> · edit <org> <bio> · add <org> <email> [admin] · remove <org> <email> · delete <org> <org>"
@@ -435,14 +502,15 @@ async fn org(args: &[String]) -> Result<()> {
 async fn whoami() -> Result<()> {
     let (client, session) = require("not signed in — run `termcade login`")?;
     let me = client.me().await?;
-    println!("{} ({})", out(&me.email), out(&session.registry));
+    record(json!({"account":me,"registry":session.registry}));
+    crate::notice!("{} ({})", out(&me.email), out(&session.registry));
     if me.username.is_empty() {
-        println!("\nno username yet — claim one with `termcade username <name>`");
+        crate::notice!("\nno username yet — claim one with `termcade username <name>`");
     } else {
-        println!("\npublish as:\n  {:<24} you", out(&me.username));
+        crate::notice!("\npublish as:\n  {:<24} you", out(&me.username));
     }
     for org in me.orgs {
-        println!("  {:<24} studio ({})", out(&org.username), role(org.admin));
+        crate::notice!("  {:<24} studio ({})", out(&org.username), role(org.admin));
     }
     Ok(())
 }
@@ -467,7 +535,8 @@ async fn username(args: &[String]) -> Result<()> {
             .await?;
         session.username = claimed.name;
         registry::save_session(&session)?;
-        println!(
+        record(json!({"username":session.username,"claimed":true}));
+        crate::notice!(
             "you are {} — publish as {}/<game>",
             out(&session.username),
             out(&session.username)
@@ -483,7 +552,8 @@ async fn username(args: &[String]) -> Result<()> {
                 }
             );
         }
-        println!(
+        record(json!({"username":name,"available":true}));
+        crate::notice!(
             "{name} is available — create an account in the app, then claim it after `termcade login`"
         );
     }
@@ -500,6 +570,7 @@ async fn delete_account(args: &[String]) -> Result<()> {
     );
     client.empty(Method::DELETE, &["v1", "me"], None).await?;
     registry::clear_session()?;
-    println!("account deleted");
+    record(json!({"deleted":true}));
+    crate::notice!("account deleted");
     Ok(())
 }

@@ -31,3 +31,6 @@ usage:
 
 This arcade is also the whole dev kit: dev new, hack, dev build, dev install,
 play. See README.md to get started.
+
+Machine results: termcade --json COMMAND [arguments]
+Finite commands return one versioned result; progress and diagnostics use stderr. The default Ratatui interface and browser approval login retain their interactive protocols. Key creation returns its one-time secret in the requested JSON result only.

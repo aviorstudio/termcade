@@ -1,3 +1,10 @@
+#[macro_export]
+macro_rules! notice {
+    ($($argument:tt)*) => {
+        if $crate::cli::machine() { eprintln!($($argument)*); }
+        else { println!($($argument)*); }
+    };
+}
 mod backend;
 mod cli;
 mod local;
@@ -29,12 +36,50 @@ fn terminal_text(value: &str, max: usize) -> String {
 }
 #[tokio::main]
 async fn main() {
-    let args: Vec<String> = std::env::args().skip(1).collect();
+    let mut args: Vec<String> = std::env::args().skip(1).collect();
+    let machine = args.first().is_some_and(|arg| arg == "--json");
+    if machine {
+        args.remove(0);
+    }
+    cli::configure(machine);
     let result = if args.is_empty() {
-        ui::run().await
+        if machine {
+            Err(anyhow::anyhow!(
+                "--json requires a finite command; the default interface is Ratatui"
+            ))
+        } else {
+            ui::run().await
+        }
     } else {
         tokio::select! {result=cli::run(&args)=>result,_=shutdown()=>Err(anyhow::anyhow!(if args[0]=="login"{"login canceled"}else{"command canceled"}))}
     };
+    if machine {
+        match &result {
+            Ok(()) => println!(
+                "{}",
+                serde_json::json!({"v":1,"ok":true,"result":cli::take_result()})
+            ),
+            Err(error) => {
+                let mut problem = serde_json::json!({"code":if error.downcast_ref::<UnknownCommand>().is_some(){"invalid_usage"}else{"operation_failed"},"message":terminal_text(&error.to_string(),16000)});
+                if let Some(termcade_registry::Error::Response {
+                    status,
+                    code,
+                    request_id,
+                    ..
+                }) = error.downcast_ref::<termcade_registry::Error>()
+                {
+                    problem["status"] = serde_json::json!(status);
+                    if !code.is_empty() {
+                        problem["code"] = serde_json::json!(code);
+                    }
+                    if !request_id.is_empty() {
+                        problem["request_id"] = serde_json::json!(request_id);
+                    }
+                }
+                println!("{}", serde_json::json!({"v":1,"ok":false,"error":problem}));
+            }
+        }
+    }
     if let Err(error) = result {
         if let Some(UnknownCommand(command)) = error.downcast_ref::<UnknownCommand>() {
             eprintln!("termcade: unknown command {command:?}\n\n{}", cli::USAGE);

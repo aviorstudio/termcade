@@ -19,7 +19,12 @@ pub enum Error {
     #[error("login required")]
     LoginRequired,
     #[error("{message}")]
-    Response { status: u16, message: String },
+    Response {
+        status: u16,
+        message: String,
+        code: String,
+        request_id: String,
+    },
     #[error("{0}")]
     Unreachable(String),
     #[error("{0}")]
@@ -245,13 +250,12 @@ impl Client {
         }
         if !status.is_success() {
             let raw = bounded(response, 8192).await.unwrap_or_default();
-            let prose = serde_json::from_slice::<Value>(&raw)
-                .ok()
-                .and_then(|v| {
-                    v.get("message")
-                        .and_then(Value::as_str)
-                        .map(|s| safe_text(s, 300))
-                })
+            let value = serde_json::from_slice::<Value>(&raw).unwrap_or(Value::Null);
+            let prose = value["error"]
+                .get("message")
+                .or_else(|| value.get("message"))
+                .and_then(Value::as_str)
+                .map(|s| safe_text(s, 300))
                 .filter(|s| !s.is_empty());
             let message = prose.unwrap_or_else(|| {
                 if status.is_server_error() || matches!(status.as_u16(), 408 | 429) {
@@ -269,6 +273,14 @@ impl Client {
             return Err(Error::Response {
                 status: status.as_u16(),
                 message,
+                code: value["error"]["code"]
+                    .as_str()
+                    .map(|s| safe_text(s, 64))
+                    .unwrap_or_default(),
+                request_id: value["error"]["request_id"]
+                    .as_str()
+                    .map(|s| safe_text(s, 128))
+                    .unwrap_or_default(),
             });
         }
         Ok(response)

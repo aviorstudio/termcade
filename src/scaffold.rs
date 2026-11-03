@@ -67,7 +67,8 @@ pub fn new(args: &[String]) -> Result<()> {
             .open(dir.join(file))?;
         out.write_all(&raw)?;
     }
-    println!(
+    crate::cli::record(serde_json::json!({"id":m.game.id,"path":dir,"created":true}));
+    crate::notice!(
         "created {}/\n  termcade.toml   identity, playfield, controls\n  src/lib.rs      the game — start here\n  Cargo.toml      Rust SDK and WASI reactor\n\nnext:\n  cd {}\n  rustup target add wasm32-wasip1\n  termcade dev build && termcade dev install build/{slug}.tcade && termcade",
         dir.display(),
         dir.display()
@@ -160,7 +161,8 @@ pub async fn build(args: &[String], runtime: &Runtime) -> Result<()> {
     fs::create_dir_all(&build_dir)?;
     let path = build_dir.join(format!("{}.tcade", m.slug()));
     Package::write(&path, &raw, &wasm)?;
-    println!(
+    crate::cli::record(serde_json::json!({"id":m.game.id,"version":m.game.version,"path":path}));
+    crate::notice!(
         "built {} {} → {}",
         m.game.id,
         m.game.version,
