@@ -9,7 +9,7 @@ publish = false
 crate-type = ["cdylib"]
 
 [dependencies]
-termcade-sdk = { path = "../../../../sdk" }
+termcade-sdk = { path = "../../../sdk" }
 
 [profile.release]
 panic = "abort"

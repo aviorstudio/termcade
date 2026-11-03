@@ -98,7 +98,7 @@ async fn legacy_go_starter_fixtures_run_in_the_rust_host_at_every_density() {
 
 #[tokio::test]
 async fn current_starters_run_in_the_rust_host_at_every_density() {
-    check_game_packages("../starter/packs").await;
+    check_game_packages("../../internal/starter/packs").await;
 }
 
 async fn check_game_packages(relative: &str) {

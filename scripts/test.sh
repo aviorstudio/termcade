@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
-cargo build --locked --release --target wasm32-wasip1 --manifest-path internal/plugin/testdata/probe-rust/Cargo.toml
-cargo build --locked --release --target wasm32-wasip1 --manifest-path internal/plugin/testdata/hang-rust/Cargo.toml
+cargo build --locked --release --target wasm32-wasip1 --manifest-path crates/plugin/testdata/probe-rust/Cargo.toml
+cargo build --locked --release --target wasm32-wasip1 --manifest-path crates/plugin/testdata/hang-rust/Cargo.toml
 cargo test --workspace --all-targets --locked
 cargo build --bin termcade --locked
 python3 scripts/test_rust_cli.py --binary "${CARGO_TARGET_DIR:-target}/debug/termcade" --wasm "${CARGO_TARGET_DIR:-target}/wasm32-wasip1/release/termcade_probe_fixture.wasm" --expected-version "${VERSION:-dev}"

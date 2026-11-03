@@ -55,7 +55,7 @@ jobs:
         python3 - "$version" <<'PYSDK'
         import sys,tomllib
         from pathlib import Path
-        version=tomllib.loads(Path("sdk/Cargo.toml").read_text())["package"]["version"]
+        version=tomllib.loads(Path("crates/sdk/Cargo.toml").read_text())["package"]["version"]
         if version!=sys.argv[1]:
             raise SystemExit(f"Commit the Cargo package version {sys.argv[1]} before releasing (currently {version}).")
         PYSDK

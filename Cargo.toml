@@ -1,6 +1,6 @@
 [workspace]
-members = ["sdk", "manifest", "internal/plugin", "internal/registry"]
-exclude = ["internal/plugin/testdata/probe-rust", "internal/plugin/testdata/hang-rust"]
+members = ["crates/sdk", "crates/manifest", "crates/plugin", "crates/registry"]
+exclude = ["crates/plugin/testdata/probe-rust", "crates/plugin/testdata/hang-rust"]
 resolver = "3"
 
 [package]
@@ -25,10 +25,10 @@ tokio = { version = "1", features = ["macros", "rt-multi-thread", "time", "signa
 url = "2"
 uuid = { version = "=1.29.0", features = ["v4"] }
 unicode-width = "0.2"
-termcade-sdk = { path = "sdk" }
-termcade-manifest = { path = "manifest" }
-termcade-plugin = { path = "internal/plugin" }
-termcade-registry = { path = "internal/registry" }
+termcade-sdk = { path = "crates/sdk" }
+termcade-manifest = { path = "crates/manifest" }
+termcade-plugin = { path = "crates/plugin" }
+termcade-registry = { path = "crates/registry" }
 
 [target.'cfg(unix)'.dependencies]
 nix = { version = "0.31", features = ["signal", "process"] }

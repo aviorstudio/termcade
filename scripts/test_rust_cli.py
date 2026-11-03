@@ -388,7 +388,7 @@ class Journeys(unittest.TestCase):
         self.assertIn('already exists and is not empty',self.run_cli('dev','new','test/my-game',game,code=1).stderr)
         # Exercise the generated source against this exact SDK without fetching a
         # second Git checkout; the original immutable source pin is asserted above.
-        local=f'termcade-sdk = {{ path = {json.dumps(str(ROOT/"sdk"))} }}'
+        local=f'termcade-sdk = {{ path = {json.dumps(str(ROOT/"crates/sdk"))} }}'
         manifest=re.sub(r'termcade-sdk = \{[^\n]+\}',lambda _:local,manifest)
         (game/'Cargo.toml').write_text(manifest)
         self.run_cli('dev','build',game,timeout=300)
