@@ -66,7 +66,7 @@ jobs:
         fi
         echo "tag=$tag" >> "$GITHUB_OUTPUT"
     - name: Set up development tools
-      uses: nicodes/tools/setup@a1c0321f3b4917a7e99eca42e241e46670f6e1e1
+      uses: nicodes/tools/setup@aa2d9d20abbc5fdaa879edffdbc3080bdf7f8c70
       env:
         GH_TOKEN: ${{ github.token }}
     - name: Install pinned build and validation tools
