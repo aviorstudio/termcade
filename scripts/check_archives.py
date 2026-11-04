@@ -60,6 +60,6 @@ def main():
             desired=next(target for system,arch,ext,target in MATRIX if host_archive().name==f'termcade_{system}_{arch}.{ext}')
             assert identity['target']==desired,'native target mismatch'
         fixture=Path(os.environ.get('CARGO_TARGET_DIR','target'))/'wasm32-wasip1/release/termcade_probe_fixture.wasm'
-        subprocess.run(['python3','scripts/test_rust_cli.py','--binary',str(binary),'--wasm',str(fixture),'--expected-version',version],check=True)
+        subprocess.run(['python3','tests/test_rust_cli.py','--binary',str(binary),'--wasm',str(fixture),'--expected-version',version],check=True)
     print(f'{len(expected)} native archives, exact checksums, source identity and CLI journeys verified')
 if __name__=='__main__':main()

@@ -140,7 +140,7 @@ fn package_rejects_extra_duplicate_nested_encrypted_nonregular_corrupt_and_overs
 
 #[test]
 fn original_bundled_go_packages_still_parse_and_install_without_changing_guest_bytes() {
-    let packs = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../internal/starter/packs");
+    let packs = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../src/assets/starter/packs");
     let destination = tempfile::tempdir().unwrap();
     let mut names = Vec::new();
     for entry in fs::read_dir(packs).unwrap() {

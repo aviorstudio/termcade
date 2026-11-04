@@ -297,10 +297,9 @@ async fn rust_guest_plays_pauses_finishes_and_queues_a_run_once() {
 #[tokio::test]
 async fn standard_playfield_fits_80_by_24_in_every_pixel_style_and_pause_can_sign_in() {
     let (mut app, _dir, _rx) = app();
-    let package = termcade_manifest::Package::read(include_bytes!(
-        "../../internal/starter/packs/tetris.tcade"
-    ))
-    .unwrap();
+    let package =
+        termcade_manifest::Package::read(include_bytes!("../assets/starter/packs/tetris.tcade"))
+            .unwrap();
     for shape in [
         CellShape::half(),
         CellShape::quadrant(),

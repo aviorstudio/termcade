@@ -91,7 +91,7 @@ jobs:
         cargo +1.94.0 build --bin termcade --locked --target "$RUST_TARGET"
         binary="target/$RUST_TARGET/debug/termcade"
         [ "$RUNNER_OS" != Windows ] || binary+=.exe
-        python3 scripts/test_rust_cli.py --binary "$binary" --wasm target/wasm32-wasip1/release/termcade_probe_fixture.wasm --expected-version "$VERSION"
+        python3 tests/test_rust_cli.py --binary "$binary" --wasm target/wasm32-wasip1/release/termcade_probe_fixture.wasm --expected-version "$VERSION"
     - name: Build release archive
       env:
         RELEASE_PLATFORM: ${{ matrix.platform }}
