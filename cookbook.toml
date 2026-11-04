@@ -1,0 +1,114 @@
+version = 1
+recipe = "rust-cli"
+
+[[components.rust]]
+name = "probe-rust"
+manifest = "crates/plugin/testdata/probe-rust/Cargo.toml"
+target = "wasm32-wasip1"
+profile = "release"
+[components.rust.test]
+enabled = false
+
+[[components.rust]]
+name = "hang-rust"
+manifest = "crates/plugin/testdata/hang-rust/Cargo.toml"
+target = "wasm32-wasip1"
+profile = "release"
+[components.rust.test]
+enabled = false
+
+[[components.rust]]
+name = "cli"
+manifest = "Cargo.toml"
+binaries = ["termcade"]
+profile = "release"
+workspace = true
+[components.rust.build]
+workspace = false
+all_targets = false
+[components.rust.test]
+all_targets = true
+
+[[components.python]]
+requirements = "tests/requirements.txt"
+target = ".artifacts/pty-python"
+
+[package]
+binary = "termcade"
+component = "cli"
+output = ".artifacts/build/termcade"
+profile = "release"
+files = []
+extra_files = ["THIRD_PARTY_NOTICES.txt"]
+version_arguments = ["version"]
+version_template = "{binary} {version}"
+info_arguments = ["--build-info"]
+info_fields = {version="{version}",commit="{commit}",target="{target}"}
+
+[[package.native_targets]]
+runner = "ubuntu-24.04"
+target = "x86_64-unknown-linux-musl"
+platform = "Linux"
+arch = "x86_64"
+extension = "tar.gz"
+checks = ["tests/test_rust_cli.py"]
+
+[[package.native_targets]]
+runner = "ubuntu-24.04-arm"
+target = "aarch64-unknown-linux-musl"
+platform = "Linux"
+arch = "arm64"
+extension = "tar.gz"
+checks = ["tests/test_rust_cli.py"]
+
+[[package.native_targets]]
+runner = "macos-15-intel"
+target = "x86_64-apple-darwin"
+platform = "Darwin"
+arch = "x86_64"
+extension = "tar.gz"
+checks = ["tests/test_rust_cli.py"]
+
+[[package.native_targets]]
+runner = "macos-15"
+target = "aarch64-apple-darwin"
+platform = "Darwin"
+arch = "arm64"
+extension = "tar.gz"
+checks = ["tests/test_rust_cli.py"]
+
+[[package.native_targets]]
+runner = "windows-2025"
+target = "x86_64-pc-windows-msvc"
+platform = "Windows"
+arch = "x86_64"
+extension = "zip"
+checks = ["tests/test_rust_cli.py"]
+
+[artifacts]
+paths = ["dist", ".artifacts/build", ".artifacts/native-package", ".artifacts/rust-target/wasm32-wasip1/release/termcade_probe_fixture.wasm", ".artifacts/rust-target/wasm32-wasip1/release/termcade_hang_fixture.wasm"]
+environment = ["VERSION", "COMMIT", "DATE", "RUST_TARGET"]
+revision_environment = ["COMMIT"]
+
+[lint]
+shell_paths = ["install.sh", ".github/scripts/verify-release-archive.sh"]
+
+[security]
+deny_warnings = true
+
+[[tests.integration]]
+runner = "python"
+path = "tests/test_rust_cli.py"
+args = ["--binary", "{binary}", "--wasm", ".artifacts/rust-target/wasm32-wasip1/release/termcade_probe_fixture.wasm", "--expected-version", "{version}"]
+
+[[tests.integration]]
+runner = "python"
+path = "tests/test_installer.py"
+
+[[tests.e2e]]
+runner = "python"
+path = "tests/test_rust_tui.py"
+args = ["--binary", "{binary}", "--wasm", ".artifacts/rust-target/wasm32-wasip1/release/termcade_probe_fixture.wasm"]
+
+[clean]
+paths = ["dist", "target", ".artifacts/build", ".artifacts/rust-target", ".artifacts/native-package", ".artifacts/advisory-db", ".artifacts/pty-python"]
