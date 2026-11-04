@@ -172,7 +172,7 @@ async fn errors_and_metadata_are_bounded_and_terminal_safe() {
 }
 #[tokio::test]
 async fn package_digest_length_identity_and_requirements_are_verified() {
-    let raw = include_bytes!("../../../internal/starter/packs/asteroid.tcade").to_vec();
+    let raw = include_bytes!("../../../src/assets/starter/packs/asteroid.tcade").to_vec();
     let package = termcade_manifest::Package::read(&raw).unwrap();
     let m = package.manifest;
     let resolution = json!({"id":m.game.id,"version":m.game.version,"size":raw.len(),"sha256":format!("{:x}",Sha256::digest(&raw)),"abi":m.requirements.abi,"width":m.requirements.width,"height":m.requirements.height});

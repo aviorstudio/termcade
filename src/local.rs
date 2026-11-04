@@ -164,9 +164,9 @@ pub fn seed_at(base: &Path) -> Result<()> {
     fs::create_dir_all(base)?;
     let mut changed = false;
     for raw in [
-        include_bytes!("../internal/starter/packs/asteroid.tcade").as_slice(),
-        include_bytes!("../internal/starter/packs/tetris.tcade").as_slice(),
-        include_bytes!("../internal/starter/packs/brickough.tcade").as_slice(),
+        include_bytes!("assets/starter/packs/asteroid.tcade").as_slice(),
+        include_bytes!("assets/starter/packs/tetris.tcade").as_slice(),
+        include_bytes!("assets/starter/packs/brickough.tcade").as_slice(),
     ] {
         let pkg = Package::read(raw)?;
         if seeded.contains(&pkg.manifest.game.id) {
