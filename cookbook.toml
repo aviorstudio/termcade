@@ -96,7 +96,7 @@ environment = ["VERSION", "COMMIT", "DATE", "RUST_TARGET"]
 revision_environment = ["COMMIT"]
 
 [lint]
-shell_paths = ["install.sh", ".github/scripts/verify-release-archive.sh"]
+shell_paths = ["install.sh"]
 
 [security]
 deny_warnings = true
@@ -121,3 +121,11 @@ paths = ["dist", "target", ".artifacts/build", ".artifacts/rust-target", ".artif
 [ci]
 runner = "ubuntu-24.04"
 timeout_minutes = 30
+
+[publication]
+tag_prefix = "v"
+initial = "bump"
+version_identity = "tag"
+validation_timeout = 45
+acceptance_timeout = 30
+cargo_manifest = "Cargo.toml"
