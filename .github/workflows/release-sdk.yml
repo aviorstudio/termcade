@@ -66,7 +66,7 @@ jobs:
         fi
         echo "tag=$tag" >> "$GITHUB_OUTPUT"
     - name: Bootstrap pinned Python for the declared recipe setup
-      uses: nicodes/tools/setup@d475b54c402754a5a37a44fbd65328551995025c
+      uses: nicodes/tools/setup@90afe99792f7f14d968603a8664b4480778e3c2e
       with:
         tools: python
       env:
