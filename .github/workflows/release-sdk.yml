@@ -65,20 +65,23 @@ jobs:
           exit 1
         fi
         echo "tag=$tag" >> "$GITHUB_OUTPUT"
-    - name: Set up development tools
-      uses: nicodes/tools/setup@a1c0321f3b4917a7e99eca42e241e46670f6e1e1
+    - name: Bootstrap pinned Python for the declared recipe setup
+      uses: nicodes/tools/setup@90afe99792f7f14d968603a8664b4480778e3c2e
+      with:
+        tools: python
       env:
         GH_TOKEN: ${{ github.token }}
     - name: Install pinned build and validation tools
       shell: bash
       run: |-
         set -euo pipefail
-        mise run install
+        make setup
     - name: Test
       shell: bash
       run: |-
         set -euo pipefail
-        mise run check
+        make build
+        make test
     - name: Create the release
       env:
         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -1,4 +1,4 @@
-<!-- Generated from private documentation source. Do not edit directly. Source SHA256: 842fc002e540921556efa24dcfe32749bf3771fb18b55c4fbe6cede999ff0c14 -->
+<!-- Generated from private documentation source. Do not edit directly. Source SHA256: 35533ce9d05dbeb8beea533b80787fb5479c11e2b5628c95161d646616759b59 -->
 
 # termcade
 
@@ -67,17 +67,17 @@ termcade publish https://github.com/you/my-game v0.1.0 my-game.tcade
 
 ## Contributor verification
 
-Tool versions and native tasks live in `mise.toml`. Prepare the pinned helper source and run the complete gate:
+`mise.toml` pins contributor SDKs. The generated root Makefile selects an immutable shared cookbook revision and binds it to `cookbook.toml`.
 
 ```sh
-git clone https://github.com/nicodes/tools.git .ci-tools
-git -C .ci-tools checkout --detach a1c0321f3b4917a7e99eca42e241e46670f6e1e1
-mise install
-mise run check
+make help
+make setup
+make build
+make test
 ```
 
-The gate checks Rust formatting, Clippy, SDK and sandbox contracts, CLI and terminal journeys, installer behavior, release archives and locked dependencies. GitHub Actions builds the five native Linux, macOS and Windows archives. Source and output receipts remain in `.artifacts/verification`.
+`make help` works offline before setup. `make setup` explicitly prepares pinned SDKs, locked dependencies and declared fixtures. `make build` compiles and packages the native outputs, then validates their source and artifact identity. `make test` runs the implemented checks against those current-source outputs. Run build again after changing source; tests do not install tools or build missing shipping artifacts.
 
-## Contributor task interface
+Use `make fmt` to apply formatting, `make test:lint`, `make test:unit`, `make test:security` or `make test:integration` to select a group. `make test:e2e` runs the declared terminal journeys. `make clean` removes declared generated outputs. Build and test evidence stays in `.artifacts/verification`.
 
-Contributor tool versions and task entry points live in the native Mise configuration. Use `mise run lint` for source checks, `mise run test` for the applicable behavioral tests, and `mise run check` for the complete supported gate. `mise run clean` removes declared generated outputs while preserving source, credentials and retained data. This package has no separate Mise development service; use its native entry points directly.
+The verified executable is `.artifacts/build/termcade` (`termcade.exe` on Windows). Build also prepares the WASIp1 probe used by the CLI and real PTY journeys. Frozen SDK rendering, sandbox boundaries, installer behavior and native archive checks remain part of verification. CI retains five native archives: Linux and macOS on x86_64 and arm64, and Windows x86_64. Release publication remains explicit and preserves the existing archive names, checksums and signer identity.
