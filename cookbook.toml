@@ -35,9 +35,6 @@ target = ".artifacts/pty-python"
 
 [package]
 binary = "termcade"
-component = "cli"
-output = ".artifacts/build/termcade"
-profile = "release"
 files = []
 extra_files = ["THIRD_PARTY_NOTICES.txt"]
 version_arguments = ["version"]
@@ -89,9 +86,6 @@ platform = "Windows"
 arch = "x86_64"
 extension = "zip"
 checks = ["tests/test_rust_cli.py"]
-
-[artifacts]
-paths = ["dist", ".artifacts/build", ".artifacts/native-package", ".artifacts/rust-target/wasm32-wasip1/release/termcade_probe_fixture.wasm", ".artifacts/rust-target/wasm32-wasip1/release/termcade_hang_fixture.wasm"]
 
 [lint]
 shell_paths = ["install.sh"]
