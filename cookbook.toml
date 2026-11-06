@@ -92,8 +92,6 @@ checks = ["tests/test_rust_cli.py"]
 
 [artifacts]
 paths = ["dist", ".artifacts/build", ".artifacts/native-package", ".artifacts/rust-target/wasm32-wasip1/release/termcade_probe_fixture.wasm", ".artifacts/rust-target/wasm32-wasip1/release/termcade_hang_fixture.wasm"]
-environment = ["VERSION", "COMMIT", "DATE", "RUST_TARGET"]
-revision_environment = ["COMMIT"]
 
 [lint]
 shell_paths = ["install.sh"]
@@ -118,9 +116,6 @@ args = ["--binary", "{binary}", "--wasm", ".artifacts/rust-target/wasm32-wasip1/
 [clean]
 paths = ["dist", "target", ".artifacts/build", ".artifacts/rust-target", ".artifacts/native-package", ".artifacts/advisory-db", ".artifacts/pty-python"]
 
-[ci]
-runner = "ubuntu-24.04"
-timeout_minutes = 30
 
 [publication]
 tag_prefix = "v"
