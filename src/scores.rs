@@ -236,17 +236,34 @@ pub struct Settings {
 }
 impl Settings {
     pub fn load() -> Result<Self> {
-        let path = termcade_registry::config_dir()?.join("settings.json");
-        match fs::read(path) {
-            Ok(raw) => Ok(serde_json::from_slice(&raw)?),
-            Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(Self::default()),
+        Self::load_from(&termcade_registry::config_dir()?)
+    }
+    fn load_from(directory: &Path) -> Result<Self> {
+        match fs::read_to_string(directory.join("settings.toml")) {
+            Ok(raw) => Ok(toml::from_str(&raw)?),
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+                if directory.join("settings.json").symlink_metadata().is_ok() {
+                    anyhow::bail!(
+                        "legacy settings.json requires explicit conversion to settings.toml; legacy JSON v1 must be converted manually; no automatic import"
+                    );
+                }
+                Ok(Self::default())
+            }
             Err(e) => Err(e.into()),
         }
     }
     pub fn save(&self) -> Result<()> {
+        let directory = termcade_registry::config_dir()?;
+        if !directory.join("settings.toml").exists()
+            && directory.join("settings.json").symlink_metadata().is_ok()
+        {
+            anyhow::bail!(
+                "legacy settings.json requires explicit conversion before writing settings.toml; legacy JSON v1 must be converted manually; no automatic import"
+            );
+        }
         atomic_write(
-            &termcade_registry::config_dir()?.join("settings.json"),
-            &serde_json::to_vec_pretty(self)?,
+            &directory.join("settings.toml"),
+            toml::to_string_pretty(self)?.as_bytes(),
         )
     }
 }
@@ -308,5 +325,28 @@ mod tests {
         assert!(!data.pending.iter().any(|r| r.id == first_id));
         assert_eq!(data.games["author/game"].high_score, 500);
         assert_eq!(data.games["author/game"].version, "1.1");
+    }
+}
+
+#[cfg(test)]
+mod settings_source_tests {
+    use super::*;
+    #[test]
+    fn canonical_settings_preserve_values_and_refuse_implicit_legacy_or_malformed_data() {
+        let directory = tempfile::tempdir().unwrap();
+        assert_eq!(Settings::load_from(directory.path()).unwrap().pixels, "");
+        fs::write(
+            directory.path().join("settings.json"),
+            "{\"pixels\":\"half\"}",
+        )
+        .unwrap();
+        assert!(Settings::load_from(directory.path()).is_err());
+        fs::write(directory.path().join("settings.toml"), "pixels = 'half'").unwrap();
+        assert_eq!(
+            Settings::load_from(directory.path()).unwrap().pixels,
+            "half"
+        );
+        fs::write(directory.path().join("settings.toml"), "pixels = 42").unwrap();
+        assert!(Settings::load_from(directory.path()).is_err());
     }
 }

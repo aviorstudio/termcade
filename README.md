@@ -1,4 +1,4 @@
-<!-- Generated from private documentation source. Do not edit directly. Source SHA256: 35533ce9d05dbeb8beea533b80787fb5479c11e2b5628c95161d646616759b59 -->
+<!-- Generated from private documentation source. Do not edit directly. Source SHA256: b8b67ac445a2049471ac053904e48eec102451d3f369f42f90dd025db5464e9e -->
 
 # termcade
 
@@ -34,7 +34,9 @@ Bundled and locally installed games work offline. Signing in uses browser approv
 
 Tab and Shift+Tab change focus, arrows select, Enter activates, Esc goes back or pauses, Ctrl+N opens navigation, and Ctrl+C quits. Games use arrows/WASD, Space/Z for action A, X for action B and Enter for start; each game displays its own controls.
 
-`TERMCADE_PIXELS` selects `quad`, `sextant`, `half` or `ascii` rendering. Settings saves a preferred style for the next game start. Local scores survive offline play and sync with your account when you reconnect.
+`TERMCADE_PIXELS` selects `quad`, `sextant`, `half` or `ascii` rendering. Current-source builds save the preferred style in `settings.toml` in the configuration directory. A legacy `settings.json` requires explicit conversion before startup; malformed TOML fails rather than replacing the preference. Installed releases retain their released interface. Local scores survive offline play and sync with your account when you reconnect.
+
+Current-source migration is manual: create the named TOML source with the same effective settings and archive the legacy JSON v1 source outside the active configuration directory. No automatic import command is provided. Preserve explicit `false`, zero and empty arrays; omit null overrides only where they meant inheritance or defaults. Do not copy credentials into tracked source files. Existing installed settings are not migrated by a source update.
 
 ## Machine commands
 
