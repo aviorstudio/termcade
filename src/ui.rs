@@ -1705,6 +1705,7 @@ impl Drop for TerminalGuard {
     }
 }
 pub async fn run() -> Result<()> {
+    let saved = Settings::load()?;
     if let Err(e) = crate::local::seed() {
         eprintln!("termcade: starter pack: {e}");
     }
@@ -1712,7 +1713,6 @@ pub async fn run() -> Result<()> {
         eprintln!("termcade: score file unavailable: {e}");
         Scores::empty()
     });
-    let saved = Settings::load().unwrap_or_default();
     let shape = std::env::var("TERMCADE_PIXELS")
         .ok()
         .and_then(|name| {
