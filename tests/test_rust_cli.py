@@ -16,6 +16,7 @@ from pathlib import Path
 import re
 import signal
 import subprocess
+import sys
 import tempfile
 import threading
 import unittest
@@ -173,6 +174,22 @@ def marketplace(state):
         server.shutdown()
         server.server_close()
         worker.join(timeout=2)
+
+
+def rust_authoring_environment(environment):
+    """Retain the prepared caller compiler when a native fixture changes cwd/XDG."""
+    cookbook = Path(os.environ['COOKBOOK_ROOT']) / 'cookbook'
+    previous_path = list(sys.path)
+    try:
+        sys.path.insert(0, str(cookbook))
+        import dependencies
+        import sdk_environment
+        values = dict(environment)
+        values.setdefault('MISE_DATA_DIR', sdk_environment.preserve_mise(os.environ)['MISE_DATA_DIR'])
+        return dependencies.helper('pinned-tools').activation(
+            ROOT, [('rust', 'cargo'), ('rust', 'rustc')], values)
+    finally:
+        sys.path[:] = previous_path
 
 
 class Journeys(unittest.TestCase):
@@ -379,6 +396,7 @@ class Journeys(unittest.TestCase):
 
     @unittest.skipIf(REFERENCE,'Rust authoring replaces the old Go source template')
     def test_generated_rust_game_builds_and_installs_without_go(self):
+        self.env = rust_authoring_environment(self.env)
         game=self.root/'game with spaces'
         self.run_cli('dev','new','test/my-game',game)
         manifest=(game/'Cargo.toml').read_text()
