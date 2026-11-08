@@ -1,4 +1,4 @@
-<!-- Generated from private documentation source. Do not edit directly. Source SHA256: b8b67ac445a2049471ac053904e48eec102451d3f369f42f90dd025db5464e9e -->
+<!-- Generated from private documentation source. Do not edit directly. Source SHA256: 4f4784e3a138f81e52f8c4496131c6b94e728061a1248c3c4aa937f50c732e0a -->
 
 # termcade
 
@@ -69,17 +69,17 @@ termcade publish https://github.com/you/my-game v0.1.0 my-game.tcade
 
 ## Contributor verification
 
-`mise.toml` pins contributor SDKs. The generated root Makefile selects an immutable shared cookbook revision and binds it to `cookbook.toml`.
+`mise.toml` pins contributor SDKs. The canonical generated task block in root `mise.toml` selects an immutable shared cookbook revision and binds it to `cookbook.toml`.
 
 ```sh
-make help
-make setup
-make build
-make test
+mise run help
+mise run setup
+mise run build
+mise run test
 ```
 
-`make help` works offline before setup. `make setup` explicitly prepares pinned SDKs, locked dependencies and declared fixtures. `make build` compiles and packages the native outputs, then validates their source and artifact identity. `make test` runs the implemented checks against those current-source outputs. Run build again after changing source; tests do not install tools or build missing shipping artifacts.
+`mise run help` works offline before setup. `mise run setup` explicitly prepares pinned SDKs, locked dependencies and declared fixtures. `mise run build` compiles and packages the native outputs, then validates their source and artifact identity. `mise run test` runs the implemented checks against those current-source outputs. Run build again after changing source; tests do not install tools or build missing shipping artifacts.
 
-Use `make fmt` to apply formatting, `make test:lint`, `make test:unit`, `make test:security` or `make test:integration` to select a group. `make test:e2e` runs the declared terminal journeys. `make clean` removes declared generated outputs. Build and test evidence stays in `.artifacts/verification`.
+Use `mise run fmt` to apply formatting, `mise run test:lint`, `mise run test:unit`, `mise run test:security` or `mise run test:integration` to select a group. `mise run test:e2e` runs the declared terminal journeys. `mise run clean` removes declared generated outputs. Build and test evidence stays in `.artifacts/verification`.
 
 The verified executable is `.artifacts/build/termcade` (`termcade.exe` on Windows). Build also prepares the WASIp1 probe used by the CLI and real PTY journeys. Frozen SDK rendering, sandbox boundaries, installer behavior and native archive checks remain part of verification. CI retains five native archives: Linux and macOS on x86_64 and arm64, and Windows x86_64. Release publication remains explicit and preserves the existing archive names, checksums and signer identity.

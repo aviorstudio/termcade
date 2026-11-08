@@ -75,13 +75,13 @@ jobs:
       shell: bash
       run: |-
         set -euo pipefail
-        make setup
+        mise run setup
     - name: Test
       shell: bash
       run: |-
         set -euo pipefail
-        make build
-        make test
+        mise run build
+        mise run test
     - name: Create the release
       env:
         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
