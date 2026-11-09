@@ -12,7 +12,7 @@ sha2 = "0.10"
 termcade-sdk = { path = "../sdk" }
 tokio = { version = "1", features = ["time"] }
 # Supported LTS security patch; newer trains need a newer Rust toolchain.
-wasmtime = { version = "=36.0.20", default-features = false, features = ["std", "runtime", "cranelift", "async"] }
+wasmtime = { version = "=47.0.4", default-features = false, features = ["std", "runtime", "cranelift", "async"] }
 wasmtime-wasi = { version = "=36.0.20", default-features = false, features = ["preview1"] }
 
 [dev-dependencies]
