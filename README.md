@@ -1,4 +1,4 @@
-<!-- Generated from private documentation source. Do not edit directly. Source SHA256: 4f4784e3a138f81e52f8c4496131c6b94e728061a1248c3c4aa937f50c732e0a -->
+<!-- Generated from private documentation source. Do not edit directly. Source SHA256: 341b8cfd60a37eeb77260281c6e2141435782991c102ff379cc5158aad64693e -->
 
 # termcade
 
@@ -34,9 +34,7 @@ Bundled and locally installed games work offline. Signing in uses browser approv
 
 Tab and Shift+Tab change focus, arrows select, Enter activates, Esc goes back or pauses, Ctrl+N opens navigation, and Ctrl+C quits. Games use arrows/WASD, Space/Z for action A, X for action B and Enter for start; each game displays its own controls.
 
-`TERMCADE_PIXELS` selects `quad`, `sextant`, `half` or `ascii` rendering. Current-source builds save the preferred style in `settings.toml` in the configuration directory. A legacy `settings.json` requires explicit conversion before startup; malformed TOML fails rather than replacing the preference. Installed releases retain their released interface. Local scores survive offline play and sync with your account when you reconnect.
-
-Current-source migration is manual: create the named TOML source with the same effective settings and archive the legacy JSON v1 source outside the active configuration directory. No automatic import command is provided. Preserve explicit `false`, zero and empty arrays; omit null overrides only where they meant inheritance or defaults. Do not copy credentials into tracked source files. Existing installed settings are not migrated by a source update.
+`TERMCADE_PIXELS` selects `quad`, `sextant`, `half` or `ascii` rendering. The preferred style is saved in `settings.toml` in the configuration directory. Malformed settings fail without replacing the preference. Local scores survive offline play and sync with your account when you reconnect. An unreadable or unsupported score store stops startup and preserves the original file.
 
 ## Machine commands
 
@@ -57,7 +55,7 @@ termcade dev install build/my-game.tcade
 termcade
 ```
 
-Edit `src/lib.rs` for the game and `termcade.toml` for its identity, playfield and controls. The generated Cargo project pins the Rust `termcade-sdk` crate to an exact source revision. `dev build` compiles a WASI reactor and packages it as a `.tcade`; the arcade runs it with ABI v1. Existing ABI-v1 packages remain compatible.
+Edit `src/lib.rs` for the game and `termcade.toml` for its identity, playfield and controls. The generated Cargo project pins the Rust `termcade-sdk` crate to an exact source revision. `dev build` compiles a WASI reactor and packages it as a `.tcade`; the arcade runs it with ABI v1.
 
 Publish a package already uploaded to a GitHub release:
 
