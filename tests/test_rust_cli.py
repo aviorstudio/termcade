@@ -25,7 +25,6 @@ import zipfile
 ROOT = Path(__file__).resolve().parents[1]
 CLI = None
 WASM = None
-REFERENCE = False
 EXPECTED_VERSION = 'dev'
 TOKEN = 'tcc_' + 'a' * 43
 KEY = 'ak_' + 'b' * 32
@@ -393,7 +392,6 @@ class Journeys(unittest.TestCase):
     def test_logout_is_idempotent(self):
         self.sign_in();self.run_cli('logout');self.assertFalse(self.session.exists());self.run_cli('logout')
 
-    @unittest.skipIf(REFERENCE,'Rust authoring replaces the old Go source template')
     def test_generated_rust_game_builds_and_installs_without_go(self):
         self.env = rust_authoring_environment(self.env)
         game=self.root/'game with spaces'
@@ -424,18 +422,13 @@ class Journeys(unittest.TestCase):
 
 
 def main():
-    global CLI,WASM,REFERENCE,EXPECTED_VERSION
+    global CLI,WASM,EXPECTED_VERSION
     parser=argparse.ArgumentParser()
     parser.add_argument('--binary',required=True,type=Path)
     parser.add_argument('--wasm',required=True,type=Path)
-    parser.add_argument('--reference',action='store_true')
     parser.add_argument('--expected-version',default='dev')
     args,rest=parser.parse_known_args()
-    CLI=args.binary.resolve();WASM=args.wasm.resolve();REFERENCE=args.reference;EXPECTED_VERSION=args.expected_version
-    # Set the skip condition after argument parsing, before unittest discovery.
-    if REFERENCE:
-        Journeys.test_generated_rust_game_builds_and_installs_without_go.__unittest_skip__=True
-        Journeys.test_generated_rust_game_builds_and_installs_without_go.__unittest_skip_why__='Rust authoring contract'
+    CLI=args.binary.resolve();WASM=args.wasm.resolve();EXPECTED_VERSION=args.expected_version
     unittest.main(argv=['test_rust_cli.py',*rest],verbosity=2)
 
 if __name__=='__main__':
