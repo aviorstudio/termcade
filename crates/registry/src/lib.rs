@@ -253,7 +253,6 @@ impl Client {
             let value = serde_json::from_slice::<Value>(&raw).unwrap_or(Value::Null);
             let prose = value["error"]
                 .get("message")
-                .or_else(|| value.get("message"))
                 .and_then(Value::as_str)
                 .map(|s| safe_text(s, 300))
                 .filter(|s| !s.is_empty());
