@@ -153,25 +153,38 @@ pub fn seed_at(base: &Path) -> Result<()> {
             .map(str::to_string)
             .collect(),
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
-            if base.join(".starter-v1").exists() {
-                ["aviorstudio/asteroid".into(), "aviorstudio/tetris".into()].into()
-            } else {
-                BTreeSet::new()
-            }
+            anyhow::ensure!(
+                !base.join(".starter-v1").exists(),
+                "unsupported .starter-v1 marker; existing games have not been changed"
+            );
+            BTreeSet::new()
         }
         Err(e) => return Err(e.into()),
     };
     fs::create_dir_all(base)?;
     let mut changed = false;
-    for raw in [
-        include_bytes!("assets/starter/packs/asteroid.tcade").as_slice(),
-        include_bytes!("assets/starter/packs/tetris.tcade").as_slice(),
-        include_bytes!("assets/starter/packs/brickough.tcade").as_slice(),
+    for (id, raw) in [
+        (
+            "aviorstudio/asteroid",
+            include_bytes!("assets/starter/packs/asteroid.tcade").as_slice(),
+        ),
+        (
+            "aviorstudio/tetris",
+            include_bytes!("assets/starter/packs/tetris.tcade").as_slice(),
+        ),
+        (
+            "aviorstudio/brickough",
+            include_bytes!("assets/starter/packs/brickough.tcade").as_slice(),
+        ),
     ] {
-        let pkg = Package::read(raw)?;
-        if seeded.contains(&pkg.manifest.game.id) {
+        if seeded.contains(id) {
             continue;
         }
+        let pkg = Package::read(raw)?;
+        anyhow::ensure!(
+            pkg.manifest.game.id == id,
+            "starter package identity mismatch"
+        );
         pkg.install(base)?;
         seeded.insert(pkg.manifest.game.id);
         changed = true;
@@ -181,11 +194,6 @@ pub fn seed_at(base: &Path) -> Result<()> {
             &marker,
             (seeded.into_iter().collect::<Vec<_>>().join("\n") + "\n").as_bytes(),
         )?;
-        match fs::remove_file(base.join(".starter-v1")) {
-            Ok(()) => (),
-            Err(e) if e.kind() == std::io::ErrorKind::NotFound => (),
-            Err(e) => return Err(e.into()),
-        }
     }
     Ok(())
 }
@@ -194,21 +202,33 @@ pub fn seed_at(base: &Path) -> Result<()> {
 mod tests {
     use super::*;
     #[test]
-    fn starter_markers_do_not_resurrect_removed_games_and_migrate_legacy_offers() {
+    fn current_starter_markers_do_not_resurrect_removed_games() {
         let dir = tempfile::tempdir().unwrap();
         seed_at(dir.path()).unwrap();
         let games = discover_at(dir.path()).unwrap();
         assert_eq!(games.len(), 3);
         remove_at(dir.path(), "aviorstudio/asteroid").unwrap();
+        let marker = fs::read(dir.path().join(".starter")).unwrap();
         seed_at(dir.path()).unwrap();
         assert_eq!(discover_at(dir.path()).unwrap().len(), 2);
+        assert_eq!(fs::read(dir.path().join(".starter")).unwrap(), marker);
+    }
+    #[test]
+    fn unsupported_starter_marker_does_not_install_rewrite_or_delete_files() {
         let legacy = tempfile::tempdir().unwrap();
-        fs::write(legacy.path().join(".starter-v1"), b"").unwrap();
-        seed_at(legacy.path()).unwrap();
-        let games = discover_at(legacy.path()).unwrap();
-        assert_eq!(games.len(), 1);
-        assert_eq!(games[0].id, "aviorstudio/brickough");
-        assert!(!legacy.path().join(".starter-v1").exists());
+        fs::write(legacy.path().join(".starter-v1"), b"original marker").unwrap();
+        fs::write(legacy.path().join("keep.txt"), b"owned data").unwrap();
+        assert!(seed_at(legacy.path()).is_err());
+        assert_eq!(
+            fs::read(legacy.path().join(".starter-v1")).unwrap(),
+            b"original marker"
+        );
+        assert_eq!(
+            fs::read(legacy.path().join("keep.txt")).unwrap(),
+            b"owned data"
+        );
+        assert!(!legacy.path().join(".starter").exists());
+        assert!(!legacy.path().join("aviorstudio").exists());
     }
     #[cfg(unix)]
     #[test]

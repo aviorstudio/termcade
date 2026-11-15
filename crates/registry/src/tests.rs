@@ -158,7 +158,8 @@ async fn credentials_stay_on_origin_and_paths_escape_single_segments() {
 async fn errors_and_metadata_are_bounded_and_terminal_safe() {
     let mock = Mock::new(vec![
         (401, vec![], vec![]),
-        (404, vec![], br#"{"message":"gone\u001b[31m\n"}"#.to_vec()),
+        (404, vec![], br#"{"error":{"code":"missing","message":"gone\u001b[31m\n","request_id":"native-fixture-123"},"message":"unused"}"#.to_vec()),
+        (404, vec![], br#"{"message":"obsolete flat response"}"#.to_vec()),
         (200, vec![], b"{} trailing".to_vec()),
         (200, vec![], vec![b'a'; MAX_JSON + 1]),
     ]);
@@ -167,6 +168,12 @@ async fn errors_and_metadata_are_bounded_and_terminal_safe() {
     let error = client.me().await.unwrap_err();
     assert!(error.not_found());
     assert!(!error.to_string().contains('\x1b'));
+    assert!(matches!(error, Error::Response { code, request_id, .. }
+        if code == "missing" && request_id == "native-fixture-123"));
+    let flat = client.me().await.unwrap_err();
+    assert!(flat.not_found());
+    assert!(flat.to_string().contains("HTTP 404"));
+    assert!(!flat.to_string().contains("obsolete flat response"));
     assert!(client.me().await.is_err());
     assert!(client.me().await.is_err());
 }

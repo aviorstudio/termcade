@@ -1,8 +1,7 @@
 #!/usr/bin/env python3
 """Independent, offline CLI journeys against a loopback marketplace.
 
-The common cases also run against the original CLI during migration. No real
-credentials, browsers, GitHub releases or marketplace writes are used.
+No real credentials, browsers, GitHub releases or marketplace writes are used.
 """
 import argparse
 import contextlib

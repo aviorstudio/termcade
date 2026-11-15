@@ -128,6 +128,21 @@ class TuiJourneys(unittest.TestCase):
         app=Arcade(CLI,self.env,self.root)
         self.addCleanup(app.close)
         return app
+    def test_unreadable_scores_fail_before_terminal_or_starter_changes(self):
+        path=self.root/'config/termcade/scores.json'
+        path.parent.mkdir(parents=True)
+        for original in [b'{malformed',b'{"version":1,"games":{"asteroid":{"high_score":99}}}',b'{"version":4,"games":{},"pending":[]}']:
+            with self.subTest(original=original):
+                path.write_bytes(original)
+                app=self.arcade()
+                app.wait(lambda:app.process.poll() is not None,'score load must fail before opening the arcade')
+                app.pump()
+                self.assertEqual(app.process.returncode,1)
+                self.assertEqual(path.read_bytes(),original,'failed loading must never save an empty replacement')
+                self.assertEqual(termios.tcgetattr(app.slave),app.before)
+                self.assertNotIn(b'\x1b[?1049h',app.raw)
+                self.assertFalse((self.root/'data/termcade/games/.starter').exists())
+        self.assertEqual(self.state.requests,[])
     def test_account_add_play_pause_local_uninstall_and_account_remove_are_distinct(self):
         self.sign_in()
         app=self.arcade()

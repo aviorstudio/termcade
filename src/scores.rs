@@ -48,53 +48,33 @@ pub struct Data {
 }
 #[derive(Clone)]
 pub struct Scores {
-    path: Option<PathBuf>,
+    path: PathBuf,
     data: Arc<Mutex<Data>>,
 }
 impl Scores {
-    pub fn empty() -> Self {
-        Self {
-            path: termcade_registry::config_dir()
-                .ok()
-                .map(|p| p.join("scores.json")),
-            data: Arc::new(Mutex::new(Data {
-                version: 3,
-                ..Data::default()
-            })),
-        }
-    }
     pub fn load() -> Result<Self> {
         Self::load_at(termcade_registry::config_dir()?.join("scores.json"))
     }
     pub fn load_at(path: PathBuf) -> Result<Self> {
-        let mut data: Data = match fs::read(&path) {
+        let data: Data = match fs::read(&path) {
             Ok(raw) => {
                 anyhow::ensure!(raw.len() <= 8 << 20, "score file exceeds the byte limit");
                 serde_json::from_slice(&raw)
                     .with_context(|| format!("parsing {}", path.display()))?
             }
-            Err(e) if e.kind() == std::io::ErrorKind::NotFound => Data::default(),
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => Data {
+                version: 3,
+                ..Data::default()
+            },
             Err(e) => return Err(e.into()),
         };
-        if data.version <= 1 {
-            data.games = data
-                .games
-                .into_iter()
-                .map(|(key, value)| {
-                    (
-                        if key.contains('/') {
-                            key
-                        } else {
-                            format!("aviorstudio/{key}")
-                        },
-                        value,
-                    )
-                })
-                .collect();
-        }
-        data.version = 3;
+        anyhow::ensure!(
+            data.version == 3,
+            "unsupported score file version {}; expected 3",
+            data.version
+        );
         Ok(Self {
-            path: Some(path),
+            path,
             data: Arc::new(Mutex::new(data)),
         })
     }
@@ -159,9 +139,7 @@ impl Scores {
     }
     pub fn save(&self) -> Result<()> {
         atomic_write(
-            self.path
-                .as_ref()
-                .context("scores: no config path available")?,
+            &self.path,
             &serde_json::to_vec_pretty(&*self.data.lock().expect("score lock"))?,
         )
     }
@@ -272,11 +250,13 @@ impl Settings {
 mod tests {
     use super::*;
     #[test]
-    fn legacy_scores_migrate_without_losing_last_played_or_lowering_highs() {
+    fn current_scores_load_without_rewriting_or_lowering_highs() {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("scores.json");
-        fs::write(&path,br#"{"version":1,"games":{"asteroid":{"high_score":100,"updated_at":"2026-01-01T00:00:00Z","last_played":"2026-10-30T00:00:00Z","version":"old"}},"pending":null}"#).unwrap();
+        let original = br#"{"version":3,"games":{"aviorstudio/asteroid":{"high_score":100,"updated_at":"2026-01-01T00:00:00Z","last_played":"2026-10-30T00:00:00Z","version":"0.1.1"}},"pending":[]}"#;
+        fs::write(&path, original).unwrap();
         let mut scores = Scores::load_at(path.clone()).unwrap();
+        assert_eq!(fs::read(&path).unwrap(), original);
         assert_eq!(scores.high("aviorstudio/asteroid"), 100);
         scores.merge(&Activity {
             id: "aviorstudio/asteroid".into(),
@@ -289,9 +269,29 @@ mod tests {
         let data: Data = serde_json::from_slice(&fs::read(path).unwrap()).unwrap();
         let entry = &data.games["aviorstudio/asteroid"];
         assert_eq!(entry.high_score, 100);
-        assert_eq!(entry.version, "old");
+        assert_eq!(entry.version, "0.1.1");
         assert_eq!(entry.last_played, "2026-10-30T00:00:00Z");
         assert_eq!(data.version, 3);
+    }
+    #[test]
+    fn unsupported_and_malformed_scores_leave_original_bytes_untouched() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("scores.json");
+        for version in [0, 1, 2, 4, 100] {
+            let original = serde_json::to_vec(&serde_json::json!({
+                "version": version,
+                "games": {"author/game": {"high_score": 99}},
+                "pending": []
+            }))
+            .unwrap();
+            fs::write(&path, &original).unwrap();
+            assert!(Scores::load_at(path.clone()).is_err());
+            assert_eq!(fs::read(&path).unwrap(), original);
+        }
+        let original = b"{unreadable score data";
+        fs::write(&path, original).unwrap();
+        assert!(Scores::load_at(path.clone()).is_err());
+        assert_eq!(fs::read(path).unwrap(), original);
     }
     #[test]
     fn offline_queue_caps_history_keeps_unique_run_ids_and_shares_atomic_saves() {
