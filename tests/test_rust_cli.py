@@ -88,7 +88,7 @@ class State:
             self.username = body['username']
             return 200, dict(name=self.username, is_org=False)
         if path.startswith('/v1/usernames/'):
-            return 404, dict(message='this handle is available')
+            return 404, dict(error=dict(code='not_found',message='this handle is available',request_id='fixture-username'))
         if path == '/v1/games':
             return 200, dict(games=[self.game])
         if path == '/v1/library':
@@ -136,7 +136,7 @@ class State:
             return 200, self.activity
         if path.startswith('/v1/activity/'):
             return 200, dict(id='test/probe', personal_best=body['score'], plays=1)
-        return 404, dict(message='fixture route missing')
+        return 404, dict(error=dict(code='not_found',message='fixture route missing',request_id='fixture-route'))
 
 
 @contextlib.contextmanager
@@ -336,8 +336,8 @@ class Journeys(unittest.TestCase):
 
     def test_failed_account_removal_keeps_the_local_package(self):
         self.sign_in();self.run_cli('add','test/probe')
-        self.state.fail[('DELETE','/v1/library/test/probe')]=(503,dict(message='try later'))
-        self.assertIn('try later',self.run_cli('remove','test/probe',code=1).stderr)
+        self.state.fail[('DELETE','/v1/library/test/probe')]=(503,dict(error=dict(code='service_unavailable',message='Service Unavailable',request_id='fixture-removal')))
+        self.assertIn('Service Unavailable',self.run_cli('remove','test/probe',code=1).stderr)
         self.assertTrue((self.installed/'game.wasm').exists())
         self.state.fail.clear();self.run_cli('remove','test/probe');self.assertFalse(self.installed.exists())
 
