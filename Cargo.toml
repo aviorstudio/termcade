@@ -24,7 +24,7 @@ thiserror = "2"
 time = { version = "0.3", features = ["parsing", "formatting"] }
 tokio = { version = "1", features = ["macros", "rt-multi-thread", "time", "signal", "process", "sync"] }
 url = "2"
-uuid = { version = "=1.29.0", features = ["v4"] }
+uuid = { version = "=1.29.3", features = ["v4"] }
 unicode-width = "0.2"
 termcade-sdk = { path = "crates/sdk" }
 termcade-manifest = { path = "crates/manifest" }
