@@ -1,6 +1,10 @@
 version = 1
 recipe = "rust-cli"
 
+[ci]
+rust_lockfile_audit = "Linux/arm64"
+rust_reuse_native_unit = true
+
 [[components.rust]]
 name = "probe-rust"
 manifest = "crates/plugin/testdata/probe-rust/Cargo.toml"
