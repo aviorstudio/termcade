@@ -40,4 +40,3 @@ strip = true
 
 [profile.test]
 debug = false
-opt-level = 1
