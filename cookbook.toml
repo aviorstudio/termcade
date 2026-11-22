@@ -118,6 +118,7 @@ paths = ["dist", "target", ".artifacts/build", ".artifacts/rust-target", ".artif
 
 
 [publication]
+sdk_manifest = "crates/sdk/Cargo.toml"
 tag_prefix = "v"
 initial = "bump"
 version_identity = "tag"
