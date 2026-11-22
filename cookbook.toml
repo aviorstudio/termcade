@@ -32,6 +32,9 @@ workspace = false
 all_targets = false
 [components.rust.test]
 all_targets = true
+release = true
+[components.rust.lint]
+release = true
 
 [[components.python]]
 requirements = "tests/requirements.txt"
