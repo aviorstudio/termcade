@@ -37,3 +37,7 @@ nix = { version = "0.31", features = ["signal", "process"] }
 [profile.release]
 lto = "thin"
 strip = true
+
+[profile.test]
+debug = false
+opt-level = 1
