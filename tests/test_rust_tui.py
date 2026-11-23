@@ -58,6 +58,9 @@ class Arcade:
             if predicate():
                 return
             if self.process.poll() is not None:
+                self.pump(duration=0)
+                if predicate():
+                    return
                 break
         raise AssertionError(f'{label}\n{self.text()}\nexit={self.process.poll()}')
     def contains(self, text, timeout=10):
