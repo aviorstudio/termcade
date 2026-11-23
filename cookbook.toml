@@ -124,3 +124,4 @@ version_identity = "tag"
 validation_timeout = 45
 acceptance_timeout = 30
 cargo_manifest = "Cargo.toml"
+sdk_manifest = "crates/sdk/Cargo.toml"
