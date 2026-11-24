@@ -2,6 +2,7 @@ version = 1
 recipe = "rust-cli"
 
 [ci]
+single_job = true
 rust_lockfile_audit = "Linux/arm64"
 rust_reuse_native_unit = true
 
