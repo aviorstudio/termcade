@@ -32,7 +32,7 @@ termcade-plugin = { path = "crates/plugin" }
 termcade-registry = { path = "crates/registry" }
 
 [target.'cfg(unix)'.dependencies]
-nix = { version = "0.31", features = ["signal", "process"] }
+nix = { version = "0.32", features = ["signal", "process"] }
 
 [profile.release]
 lto = "thin"
